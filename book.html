@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oivaru — Book your stay</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --lagoon:#0E7C86; --lagoon-dk:#0A5960; --sand:#F7F3EC; --ink:#1E2A2B;
+  --coral:#E4572E; --palm:#3E8E5A; --amber:#D9A404; --card:#FFFFFF; --line:#E2DCD0;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--sand);color:var(--ink)}
+.dv{font-family:"MV Faseyha","Faruma","Segoe UI",sans-serif;direction:rtl}
+header{background:linear-gradient(120deg,var(--lagoon-dk),var(--lagoon));color:#fff;padding:34px 20px;text-align:center;position:relative}
+header .wavemark{font-size:1.8rem;letter-spacing:3px;opacity:.85}
+header h1{font-size:1.6rem;margin-top:6px}
+header p{opacity:.9;font-size:.9rem;margin-top:4px}
+.langBtn{position:absolute;top:16px;right:16px;background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:6px;padding:5px 10px;font-size:.78rem;cursor:pointer}
+main{max-width:640px;margin:0 auto;padding:22px 18px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:16px}
+label{font-size:.78rem;font-weight:600;color:#5a6465;display:block;margin:12px 0 4px}
+input,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;font-size:.92rem;background:#fff;color:var(--ink)}
+.row{display:flex;gap:10px}
+.row>div{flex:1}
+.roomOpt{border:2px solid var(--line);border-radius:10px;padding:12px;margin-top:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.roomOpt.sel{border-color:var(--lagoon);background:#EAF6F5}
+.roomOpt.unavail{opacity:.4;cursor:not-allowed}
+.roomOpt .rn{font-weight:700}
+.roomOpt .rt{font-size:.78rem;color:#6b7677}
+.roomOpt .rp{font-weight:700;color:var(--lagoon-dk)}
+button.pri{background:var(--lagoon);color:#fff;border:none;border-radius:8px;padding:13px;width:100%;font-size:.95rem;font-weight:600;cursor:pointer;margin-top:16px}
+button.pri:disabled{opacity:.5;cursor:not-allowed}
+.msg{padding:10px 14px;border-radius:8px;font-size:.85rem;margin-top:10px;display:none}
+.msg.err{display:block;background:#FBE4DC;color:#8a2c10}
+.msg.ok{display:block;background:#DFF0E4;color:#1f5c36}
+.summary{font-size:.85rem;color:#5a6465;margin-top:10px;line-height:1.6}
+.hidden{display:none}
+.successBox{text-align:center;padding:40px 20px}
+.successBox .check{font-size:3rem;color:var(--palm)}
+select#propSel{margin-bottom:4px}
+</style>
+</head>
+<body>
+
+<header>
+  <button class="langBtn" onclick="toggleLang()">EN/ދިވެހި</button>
+  <div class="wavemark">≈≈≈</div>
+  <h1 data-i18n="title">Book your stay</h1>
+  <p data-i18n="subtitle">Check availability and request a booking</p>
+</header>
+
+<main>
+  <div class="card" id="formCard">
+    <label data-i18n="property">Property</label>
+    <select id="propSel" onchange="loadRooms()"></select>
+
+    <div class="row">
+      <div><label data-i18n="checkIn">Check-in</label><input type="date" id="inD" onchange="checkAvail()"></div>
+      <div><label data-i18n="checkOut">Check-out</label><input type="date" id="outD" onchange="checkAvail()"></div>
+    </div>
+
+    <label data-i18n="selectRoom">Select a room</label>
+    <div id="roomList"><p style="font-size:.85rem;color:#8a9394" data-i18n="pickDates">Pick your dates to see available rooms.</p></div>
+
+    <label data-i18n="yourName">Your name</label>
+    <input id="gName" placeholder="">
+    <label data-i18n="phone">Phone / WhatsApp</label>
+    <input id="gPhone" placeholder="+960">
+    <label data-i18n="guestsCount">Number of guests</label>
+    <input id="gCount" type="number" min="1" value="1">
+
+    <div id="summary" class="summary"></div>
+    <div id="formMsg" class="msg"></div>
+    <button class="pri" id="submitBtn" onclick="submitBooking()" disabled data-i18n="requestBooking">Request booking</button>
+  </div>
+
+  <div class="card hidden" id="successCard">
+    <div class="successBox">
+      <div class="check">✓</div>
+      <h2 data-i18n="requestSent">Booking request sent</h2>
+      <p style="margin-top:8px;color:#6b7677" data-i18n="requestSentDesc">The guesthouse will confirm your booking shortly. They may contact you by phone or WhatsApp.</p>
+      <button class="pri" onclick="location.reload()" data-i18n="bookAnother">Make another request</button>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ============ CONFIG — same Firebase project as the admin app ============ */
+const firebaseConfig = {
+  apiKey: "PASTE_API_KEY",
+  authDomain: "PASTE.firebaseapp.com",
+  projectId: "PASTE_PROJECT_ID",
+};
+/* =========================================================================
+   Firestore rules needed for this public page (add alongside admin rules):
+   match /properties/{pid} {
+     allow read: if true;
+     match /rooms/{rid} { allow read: if true; }
+     match /bookings/{bid} {
+       allow read: if true;
+       allow create: if request.resource.data.status == "pending";
+     }
+   }
+   ========================================================================= */
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let lang="en", properties=[], rooms=[], bookings=[], selectedRoom=null;
+
+const T = {
+ en:{title:"Book your stay",subtitle:"Check availability and request a booking",property:"Property",checkIn:"Check-in",checkOut:"Check-out",selectRoom:"Select a room",pickDates:"Pick your dates to see available rooms.",yourName:"Your name",phone:"Phone / WhatsApp",guestsCount:"Number of guests",requestBooking:"Request booking",requestSent:"Booking request sent",requestSentDesc:"The guesthouse will confirm your booking shortly. They may contact you by phone or WhatsApp.",bookAnother:"Make another request",noRooms:"No rooms available for these dates.",fillAll:"Please fill in your name, phone and pick a room."},
+ dv:{title:"ތިޔަ ދަތުރު ބުކްކުރައްވާ",subtitle:"ހުސް ކޮޓަރި ބައްލަވާ، ބުކިން އެދިވަޑައިގަންނަވާ",property:"ގެސްޓްހައުސް",checkIn:"ޗެކިން",checkOut:"ޗެކައުޓް",selectRoom:"ކޮޓަރި އިޚްތިޔާރުކުރައްވާ",pickDates:"ތާރީޚް ޚިޔާރުކުރައްވާ",yourName:"ނަން",phone:"ފޯން / ވަޓްސްއެޕް",guestsCount:"މެހެމާނުންގެ ޢަދަދު",requestBooking:"ބުކިން ފޮނުވާ",requestSent:"ބުކިން ފޮނުވިއްޖެ",requestSentDesc:"ގެސްޓްހައުސްއިން އަވަހަށް ކަށަވަރުކުރާނެ.",bookAnother:"އިތުރު ބުކިންއެއް",noRooms:"މި ތާރީޚަށް ހުސް ކޮޓަރި ނެތް.",fillAll:"ނަން، ފޯނު އަދި ކޮޓަރި ފުރިހަމަކުރައްވާ."}
+};
+function toggleLang(){ lang=lang==="en"?"dv":"en"; applyLang(); }
+function applyLang(){
+  document.body.classList.toggle("dv",lang==="dv");
+  document.querySelectorAll("[data-i18n]").forEach(el=>{ if(T[lang][el.dataset.i18n]) el.textContent=T[lang][el.dataset.i18n]; });
+}
+const esc = s => (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const nightsBetween=(a,b)=>Math.max(1,Math.round((new Date(b)-new Date(a))/86400000));
+
+async function init(){
+  const snap = await db.collection("properties").orderBy("name").get();
+  properties = snap.docs.map(d=>({id:d.id,...d.data()}));
+  propSel.innerHTML = properties.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  const t=new Date(); inD.value=t.toISOString().slice(0,10);
+  t.setDate(t.getDate()+1); outD.value=t.toISOString().slice(0,10);
+  if(properties.length) loadRooms();
+}
+async function loadRooms(){
+  selectedRoom=null;
+  const pid=propSel.value;
+  const rs = await db.collection("properties").doc(pid).collection("rooms").orderBy("number").get();
+  rooms = rs.docs.map(d=>({id:d.id,...d.data()}));
+  const bs = await db.collection("properties").doc(pid).collection("bookings")
+    .where("status","in",["confirmed","checkedin"]).get();
+  bookings = bs.docs.map(d=>({id:d.id,...d.data()}));
+  checkAvail();
+}
+function checkAvail(){
+  const inDv=inD.value, outDv=outD.value;
+  submitBtn.disabled=true; selectedRoom=null; summary.textContent="";
+  if(!inDv||!outDv||outDv<=inDv||!rooms.length){
+    roomList.innerHTML = `<p style="font-size:.85rem;color:#8a9394">${T[lang].pickDates}</p>`; return;
+  }
+  const avail = rooms.filter(r=>!bookings.some(b=>b.roomId===r.id && inDv<b.checkOut && outDv>b.checkIn));
+  if(!avail.length){ roomList.innerHTML=`<p style="font-size:.85rem;color:var(--coral)">${T[lang].noRooms}</p>`; return; }
+  roomList.innerHTML = avail.map(r=>`<div class="roomOpt" id="ro-${r.id}" onclick="pickRoom('${r.id}')">
+    <div><div class="rn">${esc(r.number)}</div><div class="rt">${esc(r.type||"Standard")}</div></div>
+    <div class="rp">MVR ${(r.rate||0).toLocaleString()}</div></div>`).join("");
+}
+function pickRoom(id){
+  selectedRoom = rooms.find(r=>r.id===id);
+  document.querySelectorAll(".roomOpt").forEach(el=>el.classList.remove("sel"));
+  document.getElementById("ro-"+id).classList.add("sel");
+  const n = nightsBetween(inD.value,outD.value);
+  summary.innerHTML = `${n} night(s) × MVR ${(selectedRoom.rate||0).toLocaleString()} = <b>MVR ${((selectedRoom.rate||0)*n).toLocaleString()}</b>`;
+  submitBtn.disabled=false;
+}
+async function submitBooking(){
+  const m=document.getElementById("formMsg"); m.className="msg";
+  if(!selectedRoom || !gName.value.trim() || !gPhone.value.trim()){
+    m.className="msg err"; m.textContent=T[lang].fillAll; return;
+  }
+  const n = nightsBetween(inD.value,outD.value);
+  submitBtn.disabled=true;
+  try{
+    await db.collection("properties").doc(propSel.value).collection("bookings").add({
+      guestName: gName.value.trim(), phone: gPhone.value.trim(),
+      guestCount: +gCount.value||1, roomId: selectedRoom.id,
+      checkIn: inD.value, checkOut: outD.value, nights: n,
+      rate: selectedRoom.rate||0, total: (selectedRoom.rate||0)*n,
+      paidAmount: 0, status: "pending", source:"guest-page", createdAt: Date.now()
+    });
+    formCard.classList.add("hidden"); successCard.classList.remove("hidden");
+  }catch(e){ m.className="msg err"; m.textContent=e.message; submitBtn.disabled=false; }
+}
+init();
+</script>
+</body>
+</html>
