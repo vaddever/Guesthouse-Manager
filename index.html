@@ -69,7 +69,7 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
 .badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:.72rem;font-weight:700;color:#fff}
 .b-available{background:var(--palm)} .b-occupied{background:var(--coral)}
 .b-cleaning{background:var(--amber)} .b-maintenance{background:#7a7a7a}
-.b-confirmed{background:var(--lagoon)} .b-checkedin{background:var(--palm)}
+.b-pending{background:var(--amber)} .b-confirmed{background:var(--lagoon)} .b-checkedin{background:var(--palm)}
 .b-checkedout{background:#7a7a7a} .b-cancelled{background:var(--coral)}
 .b-paid{background:var(--palm)} .b-unpaid{background:var(--coral)} .b-partial{background:var(--amber)}
 
@@ -145,6 +145,11 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
     <!-- DASHBOARD -->
     <div id="v-dash" class="view active">
       <div class="grid g4" id="dashStats"></div>
+      <h3 style="margin:22px 0 10px" data-i18n="pendingRequests">Pending booking requests</h3>
+      <table><thead><tr>
+        <th data-i18n="guest">Guest</th><th data-i18n="room">Room</th>
+        <th data-i18n="checkIn">Check-in</th><th data-i18n="checkOut">Check-out</th><th></th>
+      </tr></thead><tbody id="dashPending"></tbody></table>
       <h3 style="margin:22px 0 10px" data-i18n="todayArrivals">Today's arrivals & departures</h3>
       <table><thead><tr>
         <th data-i18n="guest">Guest</th><th data-i18n="room">Room</th>
@@ -166,6 +171,7 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
         <button class="pri" onclick="openBookingModal()" data-i18n="newBooking">+ New booking</button>
         <select id="bkFilter" style="width:auto" onchange="renderBookings()">
           <option value="">All statuses</option>
+          <option value="pending">Pending</option>
           <option value="confirmed">Confirmed</option>
           <option value="checkedin">Checked in</option>
           <option value="checkedout">Checked out</option>
@@ -240,8 +246,8 @@ let unsubRooms=null, unsubBookings=null;
 
 /* ---------- i18n ---------- */
 const T = {
- en:{appName:"Oivaru Guesthouse Manager",tagline:"Bookings · Billing · Housekeeping · Reports",email:"Email",password:"Password",signIn:"Sign in",signOut:"Sign out",dashboard:"Dashboard",rooms:"Rooms",bookings:"Bookings",billing:"Billing",housekeeping:"Housekeeping",reports:"Reports",addRoom:"+ Add room",newBooking:"+ New booking",guest:"Guest",room:"Room",checkIn:"Check-in",checkOut:"Check-out",status:"Status",payment:"Payment",nights:"Nights",total:"Total (MVR)",paid:"Paid",month:"Month",revenue:"Revenue (MVR)",revByRoom:"Revenue by room",todayArrivals:"Today's arrivals & departures",type:"Type",hkHint:"Tap a room to cycle its status: Available → Cleaning → Available. Occupied rooms clear on check-out."},
- dv:{appName:"އޮއިވަރު ގެސްޓްހައުސް މެނޭޖަރ",tagline:"ބުކިން · ބިލިން · ހައުސްކީޕިން · ރިޕޯޓް",email:"އީމެއިލް",password:"ޕާސްވޯޑް",signIn:"ވަދޭ",signOut:"ނުކުމޭ",dashboard:"ޑޭޝްބޯޑް",rooms:"ކޮޓަރި",bookings:"ބުކިން",billing:"ބިލިން",housekeeping:"ހައުސްކީޕިން",reports:"ރިޕޯޓް",addRoom:"+ ކޮޓަރި އިތުރުކުރޭ",newBooking:"+ އައު ބުކިން",guest:"މެހެމާން",room:"ކޮޓަރި",checkIn:"ޗެކިން",checkOut:"ޗެކައުޓް",status:"ހާލަތު",payment:"ފައިސާ",nights:"ރޭ",total:"ޖުމްލަ (MVR)",paid:"ދެއްކި",month:"މަސް",revenue:"އާމްދަނީ (MVR)",revByRoom:"ކޮޓަރިއަކުން އާމްދަނީ",todayArrivals:"މިއަދުގެ އަންނަ/ދާ މެހެމާނުން",type:"ބާވަތް",hkHint:"ކޮޓަރިއަށް ފިތާލައިގެން ހާލަތު ބަދަލުކުރޭ"}
+ en:{appName:"Oivaru Guesthouse Manager",tagline:"Bookings · Billing · Housekeeping · Reports",email:"Email",password:"Password",signIn:"Sign in",signOut:"Sign out",dashboard:"Dashboard",rooms:"Rooms",bookings:"Bookings",billing:"Billing",housekeeping:"Housekeeping",reports:"Reports",addRoom:"+ Add room",newBooking:"+ New booking",guest:"Guest",room:"Room",checkIn:"Check-in",checkOut:"Check-out",status:"Status",payment:"Payment",nights:"Nights",total:"Total (MVR)",paid:"Paid",month:"Month",revenue:"Revenue (MVR)",revByRoom:"Revenue by room",todayArrivals:"Today's arrivals & departures",type:"Type",hkHint:"Tap a room to cycle its status: Available → Cleaning → Available. Occupied rooms clear on check-out.",pendingRequests:"Pending booking requests",noPending:"No pending requests."},
+ dv:{appName:"އޮއިވަރު ގެސްޓްހައުސް މެނޭޖަރ",tagline:"ބުކިން · ބިލިން · ހައުސްކީޕިން · ރިޕޯޓް",email:"އީމެއިލް",password:"ޕާސްވޯޑް",signIn:"ވަދޭ",signOut:"ނުކުމޭ",dashboard:"ޑޭޝްބޯޑް",rooms:"ކޮޓަރި",bookings:"ބުކިން",billing:"ބިލިން",housekeeping:"ހައުސްކީޕިން",reports:"ރިޕޯޓް",addRoom:"+ ކޮޓަރި އިތުރުކުރޭ",newBooking:"+ އައު ބުކިން",guest:"މެހެމާން",room:"ކޮޓަރި",checkIn:"ޗެކިން",checkOut:"ޗެކައުޓް",status:"ހާލަތު",payment:"ފައިސާ",nights:"ރޭ",total:"ޖުމްލަ (MVR)",paid:"ދެއްކި",month:"މަސް",revenue:"އާމްދަނީ (MVR)",revByRoom:"ކޮޓަރިއަކުން އާމްދަނީ",todayArrivals:"މިއަދުގެ އަންނަ/ދާ މެހެމާނުން",type:"ބާވަތް",hkHint:"ކޮޓަރިއަށް ފިތާލައިގެން ހާލަތު ބަދަލުކުރޭ",pendingRequests:"އެދިފައިވާ ބުކިންތައް",noPending:"އެދިފައިވާ ބުކިންއެއް ނެތް."}
 };
 function toggleLang(){ state.lang = state.lang==="en"?"dv":"en"; applyLang(); }
 function applyLang(){
@@ -332,6 +338,14 @@ function renderDash(){
     +stat(inhouse,"In-house guests")+stat(avail,"Rooms available")+stat(occRate+"%","Occupancy");
   dashToday.innerHTML = [...arrivals.map(b=>row(b,"Arrival")),...departures.map(b=>row(b,"Departure"))].join("")
     || `<tr><td colspan="5" style="color:#8a9394">No arrivals or departures today.</td></tr>`;
+  const pending = state.bookings.filter(b=>b.status==="pending");
+  dashPending.innerHTML = pending.map(b=>`<tr>
+    <td>${esc(b.guestName)}${b.phone?`<div style="font-size:.75rem;color:#8a9394">${esc(b.phone)}</div>`:""}</td>
+    <td>${esc(roomById(b.roomId).number)}</td><td>${b.checkIn}</td><td>${b.checkOut}</td>
+    <td style="white-space:nowrap">
+      <button class="pri" style="padding:5px 10px;font-size:.78rem" onclick="setBookingStatus('${b.id}','confirmed')">Accept</button>
+      <button class="danger" style="padding:5px 10px" onclick="setBookingStatus('${b.id}','cancelled')">Decline</button>
+    </td></tr>`).join("") || `<tr><td colspan="5" style="color:#8a9394">${t('noPending')}</td></tr>`;
   function row(b,typ){
     const act = typ==="Arrival"
       ? `<button class="pri" style="padding:5px 10px;font-size:.78rem" onclick="setBookingStatus('${b.id}','checkedin')">Check in</button>`
@@ -410,7 +424,7 @@ function openBookingModal(id){
     </div>
     <label>Paid so far (MVR)</label><input id="mBkPaid" type="number" value="${b.paidAmount||0}">
     <label>Status</label>
-    <select id="mBkStatus">${["confirmed","checkedin","checkedout","cancelled"].map(s=>`<option ${b.status===s?"selected":""}>${s}</option>`).join("")}</select>
+    <select id="mBkStatus">${["pending","confirmed","checkedin","checkedout","cancelled"].map(s=>`<option ${b.status===s?"selected":""}>${s}</option>`).join("")}</select>
     <div id="mBkMsg" class="msg"></div>
     <div class="mActions">
       <button class="ghost" onclick="closeModal()">Cancel</button>
@@ -463,6 +477,7 @@ function renderBilling(){
     <td style="white-space:nowrap">
       <button class="ghost" onclick="recordPayment('${b.id}')">Payment</button>
       <button class="ghost" onclick="printInvoice('${b.id}', ${1001+i})">Invoice</button>
+      <button class="ghost" style="background:#25D366;color:#fff;border:none" onclick="whatsappInvoice('${b.id}', ${1001+i})">WhatsApp</button>
     </td></tr>`).join("") || `<tr><td colspan="7" style="color:#8a9394">No invoices.</td></tr>`;
 }
 function recordPayment(id){
@@ -499,9 +514,28 @@ function printInvoice(id,num){
       Paid: MVR ${fmt(b.paidAmount)}<br>Balance due: MVR ${fmt(b.total-(b.paidAmount||0))}</p>
     <div style="margin-top:24px;display:flex;gap:10px" class="noprint">
       <button class="pri" onclick="window.print()">Print / Save PDF</button>
+      <button class="ghost" style="background:#25D366;color:#fff;border:none" onclick="whatsappInvoice('${id}', ${num})">Share on WhatsApp</button>
       <button class="ghost" onclick="invoicePrint.classList.remove('show')">Close</button>
     </div>`;
   div.classList.add("show");
+}
+function whatsappInvoice(id,num){
+  const b=state.bookings.find(x=>x.id===id);
+  const prop=state.properties.find(p=>p.id===state.propertyId)||{};
+  const due=b.total-(b.paidAmount||0);
+  const msg = `*${prop.name||"Guesthouse"}* — Invoice INV-${num}\n`
+    + `Guest: ${b.guestName}\n`
+    + `Room ${roomById(b.roomId).number} · ${b.checkIn} to ${b.checkOut} (${b.nights} night${b.nights>1?"s":""})\n`
+    + `Total: MVR ${fmt(b.total)}\n`
+    + `Paid: MVR ${fmt(b.paidAmount)}\n`
+    + `Balance due: MVR ${fmt(due)}\n\n`
+    + `Thank you for staying with us!`;
+  let digits = (b.phone||"").replace(/[^0-9]/g,"");
+  if(digits.length===7) digits = "960"+digits;
+  const url = digits
+    ? `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url,"_blank");
 }
 
 /* ---------- housekeeping ---------- */
