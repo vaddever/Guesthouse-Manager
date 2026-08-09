@@ -69,6 +69,7 @@ select#propSel{margin-bottom:4px}
     <input id="gName" placeholder="">
     <label data-i18n="phone">Phone / WhatsApp</label>
     <input id="gPhone" placeholder="+960">
+    <div style="font-size:.72rem;color:#8a9394;margin-top:3px" data-i18n="phoneHint">7-digit local number is fine — we'll add the +960 automatically.</div>
     <label data-i18n="guestsCount">Number of guests</label>
     <input id="gCount" type="number" min="1" value="1">
 
@@ -90,9 +91,13 @@ select#propSel{margin-bottom:4px}
 <script>
 /* ============ CONFIG — same Firebase project as the admin app ============ */
 const firebaseConfig = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE.firebaseapp.com",
-  projectId: "PASTE_PROJECT_ID",
+  apiKey: "AIzaSyDwEfB40g_ostUtJ6Qo_uA3Zfjukc2kLPk",
+  authDomain: "guesthouse-manager-7eac8.firebaseapp.com",
+  projectId: "guesthouse-manager-7eac8",
+  storageBucket: "guesthouse-manager-7eac8.firebasestorage.app",
+  messagingSenderId: "896734737632",
+  appId: "1:896734737632:web:f3be65cb17ce409a210c85",
+  measurementId: "G-02XXBVF21Q"
 };
 /* =========================================================================
    Firestore rules needed for this public page (add alongside admin rules):
@@ -112,8 +117,8 @@ const db = firebase.firestore();
 let lang="en", properties=[], rooms=[], bookings=[], selectedRoom=null;
 
 const T = {
- en:{title:"Book your stay",subtitle:"Check availability and request a booking",property:"Property",checkIn:"Check-in",checkOut:"Check-out",selectRoom:"Select a room",pickDates:"Pick your dates to see available rooms.",yourName:"Your name",phone:"Phone / WhatsApp",guestsCount:"Number of guests",requestBooking:"Request booking",requestSent:"Booking request sent",requestSentDesc:"The guesthouse will confirm your booking shortly. They may contact you by phone or WhatsApp.",bookAnother:"Make another request",noRooms:"No rooms available for these dates.",fillAll:"Please fill in your name, phone and pick a room."},
- dv:{title:"ތިޔަ ދަތުރު ބުކްކުރައްވާ",subtitle:"ހުސް ކޮޓަރި ބައްލަވާ، ބުކިން އެދިވަޑައިގަންނަވާ",property:"ގެސްޓްހައުސް",checkIn:"ޗެކިން",checkOut:"ޗެކައުޓް",selectRoom:"ކޮޓަރި އިޚްތިޔާރުކުރައްވާ",pickDates:"ތާރީޚް ޚިޔާރުކުރައްވާ",yourName:"ނަން",phone:"ފޯން / ވަޓްސްއެޕް",guestsCount:"މެހެމާނުންގެ ޢަދަދު",requestBooking:"ބުކިން ފޮނުވާ",requestSent:"ބުކިން ފޮނުވިއްޖެ",requestSentDesc:"ގެސްޓްހައުސްއިން އަވަހަށް ކަށަވަރުކުރާނެ.",bookAnother:"އިތުރު ބުކިންއެއް",noRooms:"މި ތާރީޚަށް ހުސް ކޮޓަރި ނެތް.",fillAll:"ނަން، ފޯނު އަދި ކޮޓަރި ފުރިހަމަކުރައްވާ."}
+ en:{title:"Book your stay",subtitle:"Check availability and request a booking",property:"Property",checkIn:"Check-in",checkOut:"Check-out",selectRoom:"Select a room",pickDates:"Pick your dates to see available rooms.",yourName:"Your name",phone:"Phone / WhatsApp",phoneHint:"7-digit local number is fine — we'll add the +960 automatically.",guestsCount:"Number of guests",requestBooking:"Request booking",requestSent:"Booking request sent",requestSentDesc:"The guesthouse will confirm your booking shortly. They may contact you by phone or WhatsApp.",bookAnother:"Make another request",noRooms:"No rooms available for these dates.",fillAll:"Please fill in your name, phone and pick a room."},
+ dv:{title:"ތިޔަ ދަތުރު ބުކްކުރައްވާ",subtitle:"ހުސް ކޮޓަރި ބައްލަވާ، ބުކިން އެދިވަޑައިގަންނަވާ",property:"ގެސްޓްހައުސް",checkIn:"ޗެކިން",checkOut:"ޗެކައުޓް",selectRoom:"ކޮޓަރި އިޚްތިޔާރުކުރައްވާ",pickDates:"ތާރީޚް ޚިޔާރުކުރައްވާ",yourName:"ނަން",phone:"ފޯން / ވަޓްސްއެޕް",phoneHint:"7 ޑިޖިޓް ނަންބަރު ފުދޭ — +960 އޮޓޯކޮށް އިތުރުކުރެވޭނެ.",guestsCount:"މެހެމާނުންގެ ޢަދަދު",requestBooking:"ބުކިން ފޮނުވާ",requestSent:"ބުކިން ފޮނުވިއްޖެ",requestSentDesc:"ގެސްޓްހައުސްއިން އަވަހަށް ކަށަވަރުކުރާނެ.",bookAnother:"އިތުރު ބުކިންއެއް",noRooms:"މި ތާރީޚަށް ހުސް ކޮޓަރި ނެތް.",fillAll:"ނަން، ފޯނު އަދި ކޮޓަރި ފުރިހަމަކުރައްވާ."}
 };
 function toggleLang(){ lang=lang==="en"?"dv":"en"; applyLang(); }
 function applyLang(){
