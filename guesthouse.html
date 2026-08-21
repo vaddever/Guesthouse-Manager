@@ -138,6 +138,7 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
     <button data-v="bookings" onclick="show('bookings')" data-i18n="bookings">Bookings</button>
     <button data-v="billing" onclick="show('billing')" data-i18n="billing">Billing</button>
     <button data-v="housekeeping" onclick="show('housekeeping')" data-i18n="housekeeping">Housekeeping</button>
+    <button data-v="tax" onclick="show('tax')" data-i18n="tax">Tax</button>
     <button data-v="reports" onclick="show('reports')" data-i18n="reports">Reports</button>
   </nav>
   <main>
@@ -201,6 +202,52 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
       <div class="grid g4" id="hkGrid"></div>
     </div>
 
+    <!-- TAX -->
+    <div id="v-tax" class="view">
+      <div class="grid g3">
+        <div class="card">
+          <h3 style="margin-bottom:10px" data-i18n="taxSettings">Tax settings (MIRA)</h3>
+          <label data-i18n="greenTaxRate">Green Tax (USD / guest / night)</label>
+          <input id="cfgGreenTax" type="number" step="0.5">
+          <label data-i18n="tgstRate">TGST rate (%)</label>
+          <input id="cfgTgst" type="number" step="0.1">
+          <label data-i18n="usdRate">MVR per USD (for MVR totals)</label>
+          <input id="cfgUsdRate" type="number" step="0.01">
+          <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
+            <input type="checkbox" id="cfgTgstIncl" style="width:auto"> <span data-i18n="tgstIncl">Room rate already includes TGST</span>
+          </label>
+          <button class="pri" style="margin-top:14px" onclick="saveTaxSettings()" data-i18n="saveSettings">Save settings</button>
+          <p style="font-size:.72rem;color:#8a9394;margin-top:10px" data-i18n="taxNote">Defaults: USD 6/guest/night Green Tax for guesthouses with 50 or fewer rooms on inhabited islands (USD 12 for larger properties/resorts), TGST 17%. Children under 2 are exempt from Green Tax — adjust guest counts accordingly. Verify current rates at mira.gov.mv before filing.</p>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:10px" data-i18n="taxCalc">Quick tax calculator</h3>
+          <label data-i18n="nights">Nights</label><input id="calcNights" type="number" min="1" value="1" oninput="runCalc()">
+          <label data-i18n="guestsCount">Guests (excl. under 2)</label><input id="calcGuests" type="number" min="1" value="1" oninput="runCalc()">
+          <label data-i18n="roomRateMvr">Room rate per night (MVR)</label><input id="calcRate" type="number" min="0" value="1500" oninput="runCalc()">
+          <div id="calcOut" class="summary" style="margin-top:12px;font-size:.88rem;line-height:1.8"></div>
+        </div>
+      </div>
+
+      <h3 style="margin:22px 0 10px" data-i18n="mira-report">MIRA monthly report</h3>
+      <div class="toolbar">
+        <label style="margin:0" data-i18n="month">Month</label>
+        <input type="month" id="taxRepMonth" style="width:auto" onchange="renderTaxReport()">
+        <button class="ghost" onclick="window.print()" data-i18n="printReport">Print / Save PDF</button>
+      </div>
+      <div class="grid g4" id="taxRepStats" style="margin-bottom:14px"></div>
+      <h4 style="margin:14px 0 8px" data-i18n="greenTaxSheet">Green Tax information sheet</h4>
+      <table><thead><tr>
+        <th data-i18n="guest">Guest</th><th data-i18n="room">Room</th><th data-i18n="checkIn">Check-in</th>
+        <th data-i18n="checkOut">Check-out</th><th data-i18n="taxDays">Tax days</th><th data-i18n="guestsCount">Guests</th>
+        <th data-i18n="greenTaxUsd">Green Tax (USD)</th>
+      </tr></thead><tbody id="taxRepGreenRows"></tbody></table>
+      <h4 style="margin:18px 0 8px" data-i18n="tgstSheet">TGST summary</h4>
+      <table><thead><tr>
+        <th data-i18n="guest">Guest</th><th data-i18n="room">Room</th><th data-i18n="nights">Nights</th>
+        <th data-i18n="taxableValue">Taxable value (MVR)</th><th data-i18n="tgstAmount">TGST (MVR)</th>
+      </tr></thead><tbody id="taxRepTgstRows"></tbody></table>
+    </div>
+
     <!-- REPORTS -->
     <div id="v-reports" class="view">
       <div class="toolbar">
@@ -241,13 +288,14 @@ const ADMIN_EMAIL = "vaddever@gmail.com";
 const fb = firebase; fb.initializeApp(firebaseConfig);
 const db = fb.firestore();
 
-let state = { user:null, propertyId:null, properties:[], rooms:[], bookings:[], lang:"en" };
+let state = { user:null, propertyId:null, properties:[], rooms:[], bookings:[], lang:"en",
+  taxSettings:{greenTax:6, tgst:17, usdRate:15.42, tgstIncl:true} };
 let unsubRooms=null, unsubBookings=null;
 
 /* ---------- i18n ---------- */
 const T = {
- en:{appName:"Oivaru Guesthouse Manager",tagline:"Bookings · Billing · Housekeeping · Reports",email:"Email",password:"Password",signIn:"Sign in",signOut:"Sign out",dashboard:"Dashboard",rooms:"Rooms",bookings:"Bookings",billing:"Billing",housekeeping:"Housekeeping",reports:"Reports",addRoom:"+ Add room",newBooking:"+ New booking",guest:"Guest",room:"Room",checkIn:"Check-in",checkOut:"Check-out",status:"Status",payment:"Payment",nights:"Nights",total:"Total (MVR)",paid:"Paid",month:"Month",revenue:"Revenue (MVR)",revByRoom:"Revenue by room",todayArrivals:"Today's arrivals & departures",type:"Type",hkHint:"Tap a room to cycle its status: Available → Cleaning → Available. Occupied rooms clear on check-out.",pendingRequests:"Pending booking requests",noPending:"No pending requests."},
- dv:{appName:"އޮއިވަރު ގެސްޓްހައުސް މެނޭޖަރ",tagline:"ބުކިން · ބިލިން · ހައުސްކީޕިން · ރިޕޯޓް",email:"އީމެއިލް",password:"ޕާސްވޯޑް",signIn:"ވަދޭ",signOut:"ނުކުމޭ",dashboard:"ޑޭޝްބޯޑް",rooms:"ކޮޓަރި",bookings:"ބުކިން",billing:"ބިލިން",housekeeping:"ހައުސްކީޕިން",reports:"ރިޕޯޓް",addRoom:"+ ކޮޓަރި އިތުރުކުރޭ",newBooking:"+ އައު ބުކިން",guest:"މެހެމާން",room:"ކޮޓަރި",checkIn:"ޗެކިން",checkOut:"ޗެކައުޓް",status:"ހާލަތު",payment:"ފައިސާ",nights:"ރޭ",total:"ޖުމްލަ (MVR)",paid:"ދެއްކި",month:"މަސް",revenue:"އާމްދަނީ (MVR)",revByRoom:"ކޮޓަރިއަކުން އާމްދަނީ",todayArrivals:"މިއަދުގެ އަންނަ/ދާ މެހެމާނުން",type:"ބާވަތް",hkHint:"ކޮޓަރިއަށް ފިތާލައިގެން ހާލަތު ބަދަލުކުރޭ",pendingRequests:"އެދިފައިވާ ބުކިންތައް",noPending:"އެދިފައިވާ ބުކިންއެއް ނެތް."}
+ en:{appName:"Oivaru Guesthouse Manager",tagline:"Bookings · Billing · Housekeeping · Reports",email:"Email",password:"Password",signIn:"Sign in",signOut:"Sign out",dashboard:"Dashboard",rooms:"Rooms",bookings:"Bookings",billing:"Billing",housekeeping:"Housekeeping",reports:"Reports",addRoom:"+ Add room",newBooking:"+ New booking",guest:"Guest",room:"Room",checkIn:"Check-in",checkOut:"Check-out",status:"Status",payment:"Payment",nights:"Nights",total:"Total (MVR)",paid:"Paid",month:"Month",revenue:"Revenue (MVR)",revByRoom:"Revenue by room",todayArrivals:"Today's arrivals & departures",type:"Type",hkHint:"Tap a room to cycle its status: Available → Cleaning → Available. Occupied rooms clear on check-out.",pendingRequests:"Pending booking requests",noPending:"No pending requests.",tax:"Tax",taxSettings:"Tax settings (MIRA)",greenTaxRate:"Green Tax (USD / guest / night)",tgstRate:"TGST rate (%)",usdRate:"MVR per USD (for MVR totals)",tgstIncl:"Room rate already includes TGST",saveSettings:"Save settings",taxNote:"Defaults: USD 6/guest/night Green Tax for guesthouses with 50 or fewer rooms on inhabited islands (USD 12 for larger properties/resorts), TGST 17%. Children under 2 are exempt from Green Tax. Verify current rates at mira.gov.mv before filing.",taxCalc:"Quick tax calculator",roomRateMvr:"Room rate per night (MVR)",guestsCount:"Number of guests","mira-report":"MIRA monthly report",printReport:"Print / Save PDF",greenTaxSheet:"Green Tax information sheet",taxDays:"Tax days",greenTaxUsd:"Green Tax (USD)",tgstSheet:"TGST summary",taxableValue:"Taxable value (MVR)",tgstAmount:"TGST (MVR)"},
+ dv:{appName:"އޮއިވަރު ގެސްޓްހައުސް މެނޭޖަރ",tagline:"ބުކިން · ބިލިން · ހައުސްކީޕިން · ރިޕޯޓް",email:"އީމެއިލް",password:"ޕާސްވޯޑް",signIn:"ވަދޭ",signOut:"ނުކުމޭ",dashboard:"ޑޭޝްބޯޑް",rooms:"ކޮޓަރި",bookings:"ބުކިން",billing:"ބިލިން",housekeeping:"ހައުސްކީޕިން",reports:"ރިޕޯޓް",addRoom:"+ ކޮޓަރި އިތުރުކުރޭ",newBooking:"+ އައު ބުކިން",guest:"މެހެމާން",room:"ކޮޓަރި",checkIn:"ޗެކިން",checkOut:"ޗެކައުޓް",status:"ހާލަތު",payment:"ފައިސާ",nights:"ރޭ",total:"ޖުމްލަ (MVR)",paid:"ދެއްކި",month:"މަސް",revenue:"އާމްދަނީ (MVR)",revByRoom:"ކޮޓަރިއަކުން އާމްދަނީ",todayArrivals:"މިއަދުގެ އަންނަ/ދާ މެހެމާނުން",type:"ބާވަތް",hkHint:"ކޮޓަރިއަށް ފިތާލައިގެން ހާލަތު ބަދަލުކުރޭ",pendingRequests:"އެދިފައިވާ ބުކިންތައް",noPending:"އެދިފައިވާ ބުކިންއެއް ނެތް.",tax:"ޓެކްސް",taxSettings:"ޓެކްސް ސެޓިންގްސް (MIRA)",greenTaxRate:"ގްރީން ޓެކްސް (USD / މީހަކަށް / ރެއަކަށް)",tgstRate:"TGST ރޭޓް (%)",usdRate:"MVR ރޭޓް (USD އަކަށް)",tgstIncl:"ކޮޓަރި ރޭޓްގައި TGST ހިމެނިފައި",saveSettings:"ސޭވް ކުރޭ",taxNote:"ޑިފޯލްޓް: 50 ނުވަތަ އެއަށްވުރެ މަދު ކޮޓަރީގެ ގެސްޓްހައުސްތަކަށް USD 6/މީހަކަށް/ރެއަކަށް ގްރީން ޓެކްސް (ބޮޑެތި ތަންތަނަށް USD 12)، TGST 17%. 2 އަހަރުން ދަށުގެ ކުދިން ގްރީން ޓެކްސްއިން މުސްތަސްނާ. mira.gov.mv އިން ރޭޓް ޔަގީންކުރައްވާ.",taxCalc:"ޓެކްސް ކެލްކިއުލޭޓަރ",roomRateMvr:"ކޮޓަރި ރޭޓް (MVR)",guestsCount:"މެހެމާނުންގެ ޢަދަދު","mira-report":"MIRA މަހު ރިޕޯޓް",printReport:"ޕްރިންޓް / PDF",greenTaxSheet:"ގްރީން ޓެކްސް ޝީޓް",taxDays:"ޓެކްސް ދުވަސް",greenTaxUsd:"ގްރީން ޓެކްސް (USD)",tgstSheet:"TGST ޚުލާސާ",taxableValue:"ޓެކްސް ޖެހޭ އަދަދު (MVR)",tgstAmount:"TGST (MVR)"}
 };
 function toggleLang(){ state.lang = state.lang==="en"?"dv":"en"; applyLang(); }
 function applyLang(){
@@ -281,9 +329,10 @@ async function loadProperties(){
   state.propertyId = state.propertyId && state.properties.some(p=>p.id===state.propertyId)
     ? state.propertyId : state.properties[0].id;
   sel.value=state.propertyId;
+  loadTaxSettings();
   attachListeners();
 }
-function switchProperty(){ state.propertyId=propertySel.value; attachListeners(); }
+function switchProperty(){ state.propertyId=propertySel.value; loadTaxSettings(); attachListeners(); }
 function openPropertyModal(forced){
   modal(`<h3>${forced?"Create your first property":"Add property"}</h3>
     <label>Property name</label><input id="mPropName" placeholder="e.g. Reef View Guesthouse">
@@ -311,7 +360,7 @@ function attachListeners(){
       state.bookings=s.docs.map(d=>({id:d.id,...d.data()})); renderAll();
     });
 }
-function renderAll(){ renderDash(); renderRooms(); renderBookings(); renderBilling(); renderHK(); renderReports(); applyLang(); }
+function renderAll(){ renderDash(); renderRooms(); renderBookings(); renderBilling(); renderHK(); renderReports(); renderTaxReport(); applyLang(); }
 
 /* ---------- helpers ---------- */
 const esc = s => (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -416,6 +465,7 @@ function openBookingModal(id){
   modal(`<h3>${id?"Edit booking":"New booking"}</h3>
     <label>Guest name</label><input id="mBkName" value="${esc(b.guestName||"")}">
     <label>Phone</label><input id="mBkPhone" value="${esc(b.phone||"")}">
+    <label>Number of guests</label><input id="mBkGuests" type="number" min="1" value="${b.guestCount||1}">
     <label>Room</label>
     <select id="mBkRoom">${state.rooms.map(r=>`<option value="${r.id}" ${b.roomId===r.id?"selected":""}>${esc(r.number)} — MVR ${fmt(r.rate)}</option>`).join("")}</select>
     <div style="display:flex;gap:10px">
@@ -446,7 +496,7 @@ async function saveBooking(id){
     m.className="msg err"; m.textContent="This room is already booked for those dates."; return;
   }
   const rate=roomById(roomId).rate||0, n=nightsBetween(inD,outD);
-  const data={guestName:mBkName.value.trim(),phone:mBkPhone.value.trim(),roomId,
+  const data={guestName:mBkName.value.trim(),phone:mBkPhone.value.trim(),guestCount:+mBkGuests.value||1,roomId,
     checkIn:inD,checkOut:outD,nights:n,rate,total:rate*n,
     paidAmount:+mBkPaid.value||0,status:mBkStatus.value,updatedAt:Date.now()};
   const col=db.collection("properties").doc(state.propertyId).collection("bookings");
@@ -573,6 +623,61 @@ function renderReports(){
   repRows.innerHTML = Object.entries(byRoom).sort((a,b)=>b[1].r-a[1].r)
     .map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.n}</td><td>${fmt(v.r)}</td></tr>`).join("")
     || `<tr><td colspan="3" style="color:#8a9394">No bookings this month.</td></tr>`;
+}
+
+/* ---------- tax ---------- */
+async function loadTaxSettings(){
+  const doc = await db.collection("properties").doc(state.propertyId).get();
+  const ts = (doc.data()||{}).taxSettings;
+  state.taxSettings = Object.assign({greenTax:6,tgst:17,usdRate:15.42,tgstIncl:true}, ts||{});
+  cfgGreenTax.value=state.taxSettings.greenTax; cfgTgst.value=state.taxSettings.tgst;
+  cfgUsdRate.value=state.taxSettings.usdRate; cfgTgstIncl.checked=state.taxSettings.tgstIncl;
+  runCalc(); renderTaxReport();
+}
+async function saveTaxSettings(){
+  state.taxSettings = {greenTax:+cfgGreenTax.value||6, tgst:+cfgTgst.value||17,
+    usdRate:+cfgUsdRate.value||15.42, tgstIncl: cfgTgstIncl.checked};
+  await db.collection("properties").doc(state.propertyId).update({taxSettings: state.taxSettings});
+  runCalc(); renderTaxReport();
+}
+function runCalc(){
+  const n=+calcNights.value||0, g=+calcGuests.value||0, rate=+calcRate.value||0;
+  const ts=state.taxSettings;
+  const greenUsd = n*g*ts.greenTax;
+  const greenMvr = greenUsd*ts.usdRate;
+  const roomTotal = n*rate;
+  const tgstAmt = ts.tgstIncl ? roomTotal - roomTotal/(1+ts.tgst/100) : roomTotal*(ts.tgst/100);
+  const grandTotal = ts.tgstIncl ? roomTotal + greenMvr : roomTotal + tgstAmt + greenMvr;
+  calcOut.innerHTML = `Green Tax: <b>USD ${greenUsd.toFixed(2)}</b> (≈ MVR ${greenMvr.toFixed(2)})<br>
+    Room revenue: MVR ${roomTotal.toFixed(2)}<br>
+    TGST ${ts.tgstIncl?'(included)':'(added)'}: <b>MVR ${tgstAmt.toFixed(2)}</b><br>
+    <span style="font-size:1.05rem">Guest pays: <b>MVR ${grandTotal.toFixed(2)}</b> + Green Tax collected separately</span>`;
+}
+function taxDaysFor(inD,outD){ return nightsBetween(inD,outD); } // 24h-block approx; verify partial-day 12hr rule manually
+function renderTaxReport(){
+  if(!taxRepMonth.value) taxRepMonth.value = today().slice(0,7);
+  const m=taxRepMonth.value, ts=state.taxSettings;
+  const inMonth = state.bookings.filter(b=>b.status!=="cancelled" && b.checkIn.slice(0,7)===m);
+  let greenTotalUsd=0, tgstTotalMvr=0, taxableTotal=0;
+  taxRepGreenRows.innerHTML = inMonth.map(b=>{
+    const days=taxDaysFor(b.checkIn,b.checkOut), guests=b.guestCount||1;
+    const amt = days*guests*ts.greenTax; greenTotalUsd+=amt;
+    return `<tr><td>${esc(b.guestName)}</td><td>${esc(roomById(b.roomId).number)}</td>
+      <td>${b.checkIn}</td><td>${b.checkOut}</td><td>${days}</td><td>${guests}</td>
+      <td>${amt.toFixed(2)}</td></tr>`;
+  }).join("") || `<tr><td colspan="7" style="color:#8a9394">No bookings this month.</td></tr>`;
+  taxRepTgstRows.innerHTML = inMonth.map(b=>{
+    const roomTotal=b.total||0;
+    const tgstAmt = ts.tgstIncl ? roomTotal - roomTotal/(1+ts.tgst/100) : roomTotal*(ts.tgst/100);
+    const taxable = ts.tgstIncl ? roomTotal - tgstAmt : roomTotal;
+    tgstTotalMvr+=tgstAmt; taxableTotal+=taxable;
+    return `<tr><td>${esc(b.guestName)}</td><td>${esc(roomById(b.roomId).number)}</td>
+      <td>${b.nights}</td><td>${taxable.toFixed(2)}</td><td>${tgstAmt.toFixed(2)}</td></tr>`;
+  }).join("") || `<tr><td colspan="5" style="color:#8a9394">No bookings this month.</td></tr>`;
+  taxRepStats.innerHTML = stat("USD "+greenTotalUsd.toFixed(2),"Green Tax due")
+    +stat("MVR "+taxableTotal.toFixed(2),"Taxable value")
+    +stat("MVR "+tgstTotalMvr.toFixed(2),"TGST due")
+    +stat(inMonth.length,"Bookings this month");
 }
 
 /* ---------- shell ---------- */
