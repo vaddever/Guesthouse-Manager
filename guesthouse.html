@@ -194,6 +194,7 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
     <!-- BILLING -->
     <div id="v-billing" class="view">
       <div class="grid g4" id="billStats" style="margin-bottom:16px"></div>
+      <div class="card" id="billByCurrency" style="margin-bottom:16px"></div>
       <table><thead><tr>
         <th>#</th><th data-i18n="guest">Guest</th><th data-i18n="nights">Nights</th>
         <th data-i18n="total">Total (MVR)</th><th data-i18n="paid">Paid</th>
@@ -530,6 +531,16 @@ function renderBilling(){
   const totalPaid=act.reduce((s,b)=>s+(b.paidAmount||0),0);
   billStats.innerHTML = stat("MVR "+fmt(totalRev),"Billed")+stat("MVR "+fmt(totalPaid),"Collected")
     +stat("MVR "+fmt(totalRev-totalPaid),"Outstanding");
+  const byCur = {};
+  act.forEach(b=>(b.payments||[]).forEach(p=>{
+    byCur[p.currency] = byCur[p.currency]||{amount:0,mvr:0};
+    byCur[p.currency].amount += p.amount; byCur[p.currency].mvr += p.mvrAmount;
+  }));
+  const curKeys = Object.keys(byCur);
+  billByCurrency.innerHTML = curKeys.length
+    ? `<h4 style="margin-bottom:8px;font-size:.85rem;color:#5a6465">Collected by currency (original amounts)</h4>`
+      + curKeys.map(c=>`<div class="payRow"><span>${c}</span><span><b>${fmt(byCur[c].amount)}</b>${c!=="MVR"?` <span style="color:#8a9394">(≈MVR ${fmt(byCur[c].mvr)})</span>`:""}</span></div>`).join("")
+    : `<p style="font-size:.82rem;color:#8a9394">No payments collected yet.</p>`;
   billRows.innerHTML = act.map((b,i)=>`<tr>
     <td>INV-${String(1001+i)}</td><td>${esc(b.guestName)}</td><td>${b.nights}</td>
     <td>${fmt(b.total)}</td><td>${fmt(b.paidAmount)}</td>
@@ -540,47 +551,78 @@ function renderBilling(){
       <button class="ghost" style="background:#25D366;color:#fff;border:none" onclick="whatsappInvoice('${b.id}', ${1001+i})">WhatsApp</button>
     </td></tr>`).join("") || `<tr><td colspan="7" style="color:#8a9394">No invoices.</td></tr>`;
 }
+let payRows = [];
+let currentPayBookingId = null;
 function recordPayment(id){
+  const b=state.bookings.find(x=>x.id===id);
+  const due = b.total-(b.paidAmount||0);
+  payRows = [{currency:"MVR", amount: due>0?+due.toFixed(2):0, method:"Cash"}];
+  currentPayBookingId = id;
+  renderPayModal(id);
+}
+function renderPayModal(id){
+  currentPayBookingId = id;
   const b=state.bookings.find(x=>x.id===id);
   const payments = b.payments||[];
   const historyHtml = payments.length ? payments.map(p=>
     `<div class="payRow"><span>${p.date} · ${esc(p.method)}</span><span>${esc(p.currency)} ${fmt(p.amount)}${p.currency!=="MVR"?` (≈MVR ${fmt(p.mvrAmount)})`:""}</span></div>`
   ).join("") : `<p style="font-size:.8rem;color:#8a9394">No payments recorded yet.</p>`;
+  const rowsHtml = payRows.map((r,i)=>`
+    <div class="row" style="display:flex;gap:8px;align-items:flex-end;margin-top:8px">
+      <div style="flex:1"><label style="margin:0 0 4px">Currency</label>
+        <select onchange="onPayCurrencyChange(${i},this.value,'${id}')">
+          ${["MVR","USD","EUR","GBP"].map(c=>`<option value="${c}" ${r.currency===c?"selected":""}>${c}</option>`).join("")}
+        </select></div>
+      <div style="flex:1"><label style="margin:0 0 4px">Amount</label>
+        <input type="number" value="${r.amount}" oninput="payRows[${i}].amount=+this.value||0;refreshPaySummary()"></div>
+      <div style="flex:1"><label style="margin:0 0 4px">Method</label>
+        <select onchange="payRows[${i}].method=this.value">
+          ${["Cash","Bank Transfer","Card","BML QR / MIB QR","Online Payment","Other"].map(m=>`<option ${r.method===m?"selected":""}>${m}</option>`).join("")}
+        </select></div>
+      <button class="danger" style="padding:9px 11px" onclick="payRows.splice(${i},1);renderPayModal('${id}')">✕</button>
+    </div>`).join("");
   modal(`<h3>Record payment — ${esc(b.guestName)}</h3>
     <p style="font-size:.85rem;color:#6b7677">Total MVR ${fmt(b.total)} · Paid MVR ${fmt(b.paidAmount)} · Due MVR ${fmt(b.total-(b.paidAmount||0))}</p>
-    <div class="row" style="display:flex;gap:10px">
-      <div style="flex:1"><label>Currency</label>
-        <select id="mPayCur" onchange="updatePayHint()">
-          <option value="MVR">MVR</option><option value="USD">USD</option>
-          <option value="EUR">EUR</option><option value="GBP">GBP</option>
-        </select></div>
-      <div style="flex:1"><label>Amount</label><input id="mPayAmt" type="number" oninput="updatePayHint()" value="${(b.total-(b.paidAmount||0)).toFixed(2)}"></div>
-    </div>
-    <label>Payment method</label>
-    <select id="mPayMethod">
-      <option>Cash</option><option>Bank Transfer</option><option>Card</option>
-      <option>BML QR / MIB QR</option><option>Online Payment</option><option>Other</option>
-    </select>
-    <div id="mPayHint" style="font-size:.78rem;color:#8a9394;margin-top:6px"></div>
+    <p style="font-size:.78rem;color:#8a9394;margin-top:4px">Split one collection across multiple currencies — e.g. part in USD cash, remainder in MVR by card.</p>
+    <div id="payRowsWrap">${rowsHtml}</div>
+    <button class="ghost" style="margin-top:10px" onclick="payRows.push({currency:'MVR',amount:0,method:'Cash'});renderPayModal('${id}')">+ Add another currency/method</button>
+    <div id="paySummary" class="card" style="margin-top:14px;background:#F7F3EC"></div>
     <h4 style="margin:16px 0 6px;font-size:.85rem;color:#5a6465">Payment history</h4>
     <div>${historyHtml}</div>
     <div class="mActions">
       <button class="ghost" onclick="closeModal()">Cancel</button>
       <button class="pri" onclick="savePayment('${id}')">Save payment</button>
     </div>`);
-  updatePayHint();
+  refreshPaySummary(b);
 }
-function updatePayHint(){
-  const cur=mPayCur.value, amt=+mPayAmt.value||0;
-  const rate=rateFor(cur);
-  mPayHint.textContent = cur==="MVR" ? "" : `≈ MVR ${(amt*rate).toFixed(2)} at rate ${rate}`;
+function onPayCurrencyChange(i, newCur, id){
+  const b=state.bookings.find(x=>x.id===id);
+  const due = b.total-(b.paidAmount||0);
+  const otherMvr = payRows.reduce((s,r,idx)=> idx===i ? s : s+(r.amount*rateFor(r.currency)), 0);
+  const remainingMvr = due - otherMvr;
+  payRows[i].currency = newCur;
+  payRows[i].amount = remainingMvr>0 ? +(remainingMvr/rateFor(newCur)).toFixed(2) : 0;
+  renderPayModal(id);
+}
+function refreshPaySummary(b){
+  b = b || state.bookings.find(x=>x.id===currentPayBookingId);
+  const due = b.total-(b.paidAmount||0);
+  const tenderedMvr = payRows.reduce((s,r)=>s+(r.amount*rateFor(r.currency)),0);
+  const balance = due - tenderedMvr;
+  const lines = payRows.filter(r=>r.amount>0).map(r=>
+    `${r.currency} ${fmt(r.amount)}${r.currency!=="MVR"?` (≈MVR ${fmt(r.amount*rateFor(r.currency))})`:""}`).join(" + ");
+  paySummary.innerHTML = `
+    <div class="payRow"><span>Amount due</span><span><b>MVR ${fmt(due)}</b></span></div>
+    <div class="payRow"><span>Tendered${lines?" ("+lines+")":""}</span><span><b>MVR ${fmt(tenderedMvr)}</b></span></div>
+    <div class="payRow"><span>${balance>0?"Balance remaining":"Change / overpaid"}</span>
+      <span style="color:${balance>0?'var(--coral)':'var(--palm)'}"><b>MVR ${fmt(Math.abs(balance))}</b></span></div>`;
 }
 async function savePayment(id){
   const b=state.bookings.find(x=>x.id===id);
-  const cur=mPayCur.value, amt=+mPayAmt.value||0, method=mPayMethod.value;
-  if(amt<=0) return;
-  const rate=rateFor(cur), mvrAmount=amt*rate;
-  const payments = (b.payments||[]).concat([{amount:amt, currency:cur, mvrAmount, method, date:today()}]);
+  const valid = payRows.filter(r=>r.amount>0);
+  if(!valid.length) return;
+  const newEntries = valid.map(r=>({amount:r.amount, currency:r.currency, mvrAmount:r.amount*rateFor(r.currency), method:r.method, date:today()}));
+  const payments = (b.payments||[]).concat(newEntries);
   const paidAmount = payments.reduce((s,p)=>s+p.mvrAmount,0);
   await db.collection("properties").doc(state.propertyId).collection("bookings").doc(id)
     .update({payments, paidAmount});
