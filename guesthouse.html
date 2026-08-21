@@ -100,7 +100,7 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
   #invoicePrint.show{position:absolute;left:0;top:0;width:100%}
   body.printingTax #v-tax,body.printingTax #v-tax *{visibility:visible}
   body.printingTax #v-tax{position:absolute;left:0;top:0;width:100%;padding:20px}
-  body.printingTax nav,body.printingTax header,body.printingTax .toolbar button{display:none}
+  body.printingTax nav,body.printingTax header,body.printingTax .toolbar button,body.printingTax .no-print{display:none}
 }
 #invoicePrint{display:none;padding:30px;background:#fff}
 #invoicePrint.show{display:block;position:fixed;inset:0;z-index:100;overflow:auto}
@@ -209,7 +209,7 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
 
     <!-- TAX -->
     <div id="v-tax" class="view">
-      <div class="grid g3">
+      <div class="grid g3 no-print">
         <div class="card">
           <h3 style="margin-bottom:10px" data-i18n="taxSettings">Tax settings (MIRA)</h3>
           <label data-i18n="greenTaxRate">Green Tax (USD / guest / night)</label>
@@ -420,7 +420,7 @@ function renderRooms(){
     const st=roomStatus(r);
     return `<div class="roomTile rt-${st}" onclick="openRoomModal('${r.id}')">
       <div class="rn">${esc(r.number)}</div>
-      <div class="rt">${esc(r.type||"Standard")} · MVR ${fmt(r.rate)}/night</div>
+      <div class="rt">${esc(r.type||"Standard")} · MVR ${fmt(r.rate)} (≈USD ${fmt((r.rate||0)/state.taxSettings.usdRate)})/night</div>
       <div class="rt" style="margin-top:6px;font-weight:700;text-transform:uppercase;font-size:.7rem">${st}</div>
     </div>`;
   }).join("") || `<div class="card">No rooms yet — add your first room.</div>`;
@@ -431,7 +431,8 @@ function openRoomModal(id){
     <label>Room number / name</label><input id="mRoomNum" value="${esc(r.number||"")}">
     <label>Type</label>
     <select id="mRoomType">${["Standard","Deluxe","Family","Sea View"].map(x=>`<option ${r.type===x?"selected":""}>${x}</option>`).join("")}</select>
-    <label>Rate per night (MVR)</label><input id="mRoomRate" type="number" value="${r.rate||1500}">
+    <label>Rate per night (MVR)</label><input id="mRoomRate" type="number" value="${r.rate||1500}" oninput="mRoomRateUsd.textContent='≈ USD '+fmt((+mRoomRate.value||0)/state.taxSettings.usdRate)">
+    <div style="font-size:.78rem;color:#8a9394;margin-top:4px" id="mRoomRateUsd">≈ USD ${fmt((r.rate||1500)/state.taxSettings.usdRate)}</div>
     <label>Housekeeping status</label>
     <select id="mRoomHK">${["ready","cleaning","maintenance"].map(x=>`<option value="${x}" ${r.hk===x?"selected":""}>${x}</option>`).join("")}</select>
     <div class="mActions">
@@ -476,7 +477,7 @@ function openBookingModal(id){
     <label>Phone</label><input id="mBkPhone" value="${esc(b.phone||"")}">
     <label>Number of guests</label><input id="mBkGuests" type="number" min="1" value="${b.guestCount||1}">
     <label>Room</label>
-    <select id="mBkRoom">${state.rooms.map(r=>`<option value="${r.id}" ${b.roomId===r.id?"selected":""}>${esc(r.number)} — MVR ${fmt(r.rate)}</option>`).join("")}</select>
+    <select id="mBkRoom">${state.rooms.map(r=>`<option value="${r.id}" ${b.roomId===r.id?"selected":""}>${esc(r.number)} — MVR ${fmt(r.rate)} (≈USD ${fmt((r.rate||0)/state.taxSettings.usdRate)})</option>`).join("")}</select>
     <div style="display:flex;gap:10px">
       <div style="flex:1"><label>Check-in</label><input id="mBkIn" type="date" value="${b.checkIn}"></div>
       <div style="flex:1"><label>Check-out</label><input id="mBkOut" type="date" value="${b.checkOut}"></div>
@@ -598,8 +599,8 @@ function printInvoice(id,num){
     <table style="margin:16px 0"><thead><tr><th>Description</th><th>Nights</th><th>Rate</th><th>Amount (MVR)</th></tr></thead>
       <tbody><tr><td>Room ${esc(roomById(b.roomId).number)} (${b.checkIn} → ${b.checkOut})</td>
       <td>${b.nights}</td><td>${fmt(b.rate)}</td><td>${fmt(b.total)}</td></tr></tbody></table>
-    <p style="text-align:right;font-size:1.05rem"><b>Total: MVR ${fmt(b.total)}</b><br>
-      Paid: MVR ${fmt(b.paidAmount)}<br>Balance due: MVR ${fmt(b.total-(b.paidAmount||0))}</p>
+    <p style="text-align:right;font-size:1.05rem"><b>Total: MVR ${fmt(b.total)}</b> (≈USD ${fmt(b.total/state.taxSettings.usdRate)})<br>
+      Paid: MVR ${fmt(b.paidAmount)}<br>Balance due: MVR ${fmt(b.total-(b.paidAmount||0))} (≈USD ${fmt((b.total-(b.paidAmount||0))/state.taxSettings.usdRate)})</p>
     <div style="margin-top:24px;display:flex;gap:10px" class="noprint">
       <button class="pri" onclick="window.print()">Print / Save PDF</button>
       <button class="ghost" style="background:#25D366;color:#fff;border:none" onclick="whatsappInvoice('${id}', ${num})">Share on WhatsApp</button>
