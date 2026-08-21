@@ -72,6 +72,8 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
 .b-pending{background:var(--amber)} .b-confirmed{background:var(--lagoon)} .b-checkedin{background:var(--palm)}
 .b-checkedout{background:#7a7a7a} .b-cancelled{background:var(--coral)}
 .b-paid{background:var(--palm)} .b-unpaid{background:var(--coral)} .b-partial{background:var(--amber)}
+.payRow{display:flex;justify-content:space-between;font-size:.82rem;padding:6px 0;border-bottom:1px solid var(--line)}
+.payRow:last-child{border-bottom:none}
 
 /* room tiles */
 .roomTile{border-radius:var(--radius);padding:14px;color:#fff;cursor:pointer;transition:transform .1s}
@@ -94,8 +96,11 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
 /* invoice print */
 @media print{
   body *{visibility:hidden}
-  #invoicePrint,#invoicePrint *{visibility:visible}
-  #invoicePrint{position:absolute;left:0;top:0;width:100%}
+  #invoicePrint.show,#invoicePrint.show *{visibility:visible}
+  #invoicePrint.show{position:absolute;left:0;top:0;width:100%}
+  body.printingTax #v-tax,body.printingTax #v-tax *{visibility:visible}
+  body.printingTax #v-tax{position:absolute;left:0;top:0;width:100%;padding:20px}
+  body.printingTax nav,body.printingTax header,body.printingTax .toolbar button{display:none}
 }
 #invoicePrint{display:none;padding:30px;background:#fff}
 #invoicePrint.show{display:block;position:fixed;inset:0;z-index:100;overflow:auto}
@@ -213,6 +218,10 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
           <input id="cfgTgst" type="number" step="0.1">
           <label data-i18n="usdRate">MVR per USD (for MVR totals)</label>
           <input id="cfgUsdRate" type="number" step="0.01">
+          <label data-i18n="eurRate">MVR per EUR</label>
+          <input id="cfgEurRate" type="number" step="0.01">
+          <label data-i18n="gbpRate">MVR per GBP</label>
+          <input id="cfgGbpRate" type="number" step="0.01">
           <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
             <input type="checkbox" id="cfgTgstIncl" style="width:auto"> <span data-i18n="tgstIncl">Room rate already includes TGST</span>
           </label>
@@ -232,7 +241,7 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
       <div class="toolbar">
         <label style="margin:0" data-i18n="month">Month</label>
         <input type="month" id="taxRepMonth" style="width:auto" onchange="renderTaxReport()">
-        <button class="ghost" onclick="window.print()" data-i18n="printReport">Print / Save PDF</button>
+        <button class="ghost" onclick="printTaxReport()" data-i18n="printReport">Print / Save PDF</button>
       </div>
       <div class="grid g4" id="taxRepStats" style="margin-bottom:14px"></div>
       <h4 style="margin:14px 0 8px" data-i18n="greenTaxSheet">Green Tax information sheet</h4>
@@ -289,7 +298,7 @@ const fb = firebase; fb.initializeApp(firebaseConfig);
 const db = fb.firestore();
 
 let state = { user:null, propertyId:null, properties:[], rooms:[], bookings:[], lang:"en",
-  taxSettings:{greenTax:6, tgst:17, usdRate:15.42, tgstIncl:true} };
+  taxSettings:{greenTax:6, tgst:17, usdRate:15.42, eurRate:16.7, gbpRate:19.5, tgstIncl:true} };
 let unsubRooms=null, unsubBookings=null;
 
 /* ---------- i18n ---------- */
@@ -532,19 +541,48 @@ function renderBilling(){
 }
 function recordPayment(id){
   const b=state.bookings.find(x=>x.id===id);
+  const payments = b.payments||[];
+  const historyHtml = payments.length ? payments.map(p=>
+    `<div class="payRow"><span>${p.date} · ${esc(p.method)}</span><span>${esc(p.currency)} ${fmt(p.amount)}${p.currency!=="MVR"?` (≈MVR ${fmt(p.mvrAmount)})`:""}</span></div>`
+  ).join("") : `<p style="font-size:.8rem;color:#8a9394">No payments recorded yet.</p>`;
   modal(`<h3>Record payment — ${esc(b.guestName)}</h3>
     <p style="font-size:.85rem;color:#6b7677">Total MVR ${fmt(b.total)} · Paid MVR ${fmt(b.paidAmount)} · Due MVR ${fmt(b.total-(b.paidAmount||0))}</p>
-    <label>Amount received (MVR)</label><input id="mPayAmt" type="number" value="${b.total-(b.paidAmount||0)}">
+    <div class="row" style="display:flex;gap:10px">
+      <div style="flex:1"><label>Currency</label>
+        <select id="mPayCur" onchange="updatePayHint()">
+          <option value="MVR">MVR</option><option value="USD">USD</option>
+          <option value="EUR">EUR</option><option value="GBP">GBP</option>
+        </select></div>
+      <div style="flex:1"><label>Amount</label><input id="mPayAmt" type="number" oninput="updatePayHint()" value="${(b.total-(b.paidAmount||0)).toFixed(2)}"></div>
+    </div>
+    <label>Payment method</label>
+    <select id="mPayMethod">
+      <option>Cash</option><option>Bank Transfer</option><option>Card</option>
+      <option>BML QR / MIB QR</option><option>Online Payment</option><option>Other</option>
+    </select>
+    <div id="mPayHint" style="font-size:.78rem;color:#8a9394;margin-top:6px"></div>
+    <h4 style="margin:16px 0 6px;font-size:.85rem;color:#5a6465">Payment history</h4>
+    <div>${historyHtml}</div>
     <div class="mActions">
       <button class="ghost" onclick="closeModal()">Cancel</button>
-      <button class="pri" onclick="savePayment('${id}')">Save</button>
+      <button class="pri" onclick="savePayment('${id}')">Save payment</button>
     </div>`);
+  updatePayHint();
+}
+function updatePayHint(){
+  const cur=mPayCur.value, amt=+mPayAmt.value||0;
+  const rate=rateFor(cur);
+  mPayHint.textContent = cur==="MVR" ? "" : `≈ MVR ${(amt*rate).toFixed(2)} at rate ${rate}`;
 }
 async function savePayment(id){
   const b=state.bookings.find(x=>x.id===id);
-  const amt=+mPayAmt.value||0;
+  const cur=mPayCur.value, amt=+mPayAmt.value||0, method=mPayMethod.value;
+  if(amt<=0) return;
+  const rate=rateFor(cur), mvrAmount=amt*rate;
+  const payments = (b.payments||[]).concat([{amount:amt, currency:cur, mvrAmount, method, date:today()}]);
+  const paidAmount = payments.reduce((s,p)=>s+p.mvrAmount,0);
   await db.collection("properties").doc(state.propertyId).collection("bookings").doc(id)
-    .update({paidAmount:(b.paidAmount||0)+amt});
+    .update({payments, paidAmount});
   closeModal();
 }
 function printInvoice(id,num){
@@ -629,16 +667,25 @@ function renderReports(){
 async function loadTaxSettings(){
   const doc = await db.collection("properties").doc(state.propertyId).get();
   const ts = (doc.data()||{}).taxSettings;
-  state.taxSettings = Object.assign({greenTax:6,tgst:17,usdRate:15.42,tgstIncl:true}, ts||{});
+  state.taxSettings = Object.assign({greenTax:6,tgst:17,usdRate:15.42,eurRate:16.7,gbpRate:19.5,tgstIncl:true}, ts||{});
   cfgGreenTax.value=state.taxSettings.greenTax; cfgTgst.value=state.taxSettings.tgst;
-  cfgUsdRate.value=state.taxSettings.usdRate; cfgTgstIncl.checked=state.taxSettings.tgstIncl;
+  cfgUsdRate.value=state.taxSettings.usdRate; cfgEurRate.value=state.taxSettings.eurRate;
+  cfgGbpRate.value=state.taxSettings.gbpRate; cfgTgstIncl.checked=state.taxSettings.tgstIncl;
   runCalc(); renderTaxReport();
 }
 async function saveTaxSettings(){
   state.taxSettings = {greenTax:+cfgGreenTax.value||6, tgst:+cfgTgst.value||17,
-    usdRate:+cfgUsdRate.value||15.42, tgstIncl: cfgTgstIncl.checked};
+    usdRate:+cfgUsdRate.value||15.42, eurRate:+cfgEurRate.value||16.7, gbpRate:+cfgGbpRate.value||19.5,
+    tgstIncl: cfgTgstIncl.checked};
   await db.collection("properties").doc(state.propertyId).update({taxSettings: state.taxSettings});
   runCalc(); renderTaxReport();
+}
+function rateFor(cur){
+  if(cur==="MVR") return 1;
+  if(cur==="USD") return state.taxSettings.usdRate;
+  if(cur==="EUR") return state.taxSettings.eurRate;
+  if(cur==="GBP") return state.taxSettings.gbpRate;
+  return 1;
 }
 function runCalc(){
   const n=+calcNights.value||0, g=+calcGuests.value||0, rate=+calcRate.value||0;
@@ -679,6 +726,12 @@ function renderTaxReport(){
     +stat("MVR "+tgstTotalMvr.toFixed(2),"TGST due")
     +stat(inMonth.length,"Bookings this month");
 }
+
+function printTaxReport(){
+  document.body.classList.add("printingTax");
+  window.print();
+}
+window.addEventListener("afterprint", ()=>document.body.classList.remove("printingTax"));
 
 /* ---------- shell ---------- */
 function show(v){
