@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Oivaru — Guesthouse Manager</title>
+<title>Kleio — Guesthouse Manager</title>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -115,7 +115,7 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
 <div id="loginView">
   <div class="loginCard">
     <div class="wavemark">≈≈≈</div>
-    <h1 data-i18n="appName">Oivaru Guesthouse Manager</h1>
+    <h1 data-i18n="appName">Kleio Guesthouse Manager</h1>
     <p data-i18n="tagline">Bookings · Billing · Housekeeping · Reports</p>
     <label data-i18n="email">Email</label>
     <input id="loginEmail" type="email" autocomplete="username">
@@ -129,7 +129,7 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
 <!-- APP -->
 <div id="appView">
   <header>
-    <span class="brand">≈ Oivaru</span>
+    <span class="brand">≈ Kleio GH Manager</span>
     <select id="propertySel" onchange="switchProperty()"></select>
     <button class="ghost" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.4)" onclick="openPropertyModal()">＋</button>
     <div class="spacer"></div>
@@ -304,7 +304,7 @@ let unsubRooms=null, unsubBookings=null;
 
 /* ---------- i18n ---------- */
 const T = {
- en:{appName:"Oivaru Guesthouse Manager",tagline:"Bookings · Billing · Housekeeping · Reports",email:"Email",password:"Password",signIn:"Sign in",signOut:"Sign out",dashboard:"Dashboard",rooms:"Rooms",bookings:"Bookings",billing:"Billing",housekeeping:"Housekeeping",reports:"Reports",addRoom:"+ Add room",newBooking:"+ New booking",guest:"Guest",room:"Room",checkIn:"Check-in",checkOut:"Check-out",status:"Status",payment:"Payment",nights:"Nights",total:"Total (MVR)",paid:"Paid",month:"Month",revenue:"Revenue (MVR)",revByRoom:"Revenue by room",todayArrivals:"Today's arrivals & departures",type:"Type",hkHint:"Tap a room to cycle its status: Available → Cleaning → Available. Occupied rooms clear on check-out.",pendingRequests:"Pending booking requests",noPending:"No pending requests.",tax:"Tax",taxSettings:"Tax settings (MIRA)",greenTaxRate:"Green Tax (USD / guest / night)",tgstRate:"TGST rate (%)",usdRate:"MVR per USD (for MVR totals)",tgstIncl:"Room rate already includes TGST",saveSettings:"Save settings",taxNote:"Defaults: USD 6/guest/night Green Tax for guesthouses with 50 or fewer rooms on inhabited islands (USD 12 for larger properties/resorts), TGST 17%. Children under 2 are exempt from Green Tax. Verify current rates at mira.gov.mv before filing.",taxCalc:"Quick tax calculator",roomRateMvr:"Room rate per night (MVR)",guestsCount:"Number of guests","mira-report":"MIRA monthly report",printReport:"Print / Save PDF",greenTaxSheet:"Green Tax information sheet",taxDays:"Tax days",greenTaxUsd:"Green Tax (USD)",tgstSheet:"TGST summary",taxableValue:"Taxable value (MVR)",tgstAmount:"TGST (MVR)"},
+ en:{appName:"Kleio Guesthouse Manager",tagline:"Bookings · Billing · Housekeeping · Reports",email:"Email",password:"Password",signIn:"Sign in",signOut:"Sign out",dashboard:"Dashboard",rooms:"Rooms",bookings:"Bookings",billing:"Billing",housekeeping:"Housekeeping",reports:"Reports",addRoom:"+ Add room",newBooking:"+ New booking",guest:"Guest",room:"Room",checkIn:"Check-in",checkOut:"Check-out",status:"Status",payment:"Payment",nights:"Nights",total:"Total (MVR)",paid:"Paid",month:"Month",revenue:"Revenue (MVR)",revByRoom:"Revenue by room",todayArrivals:"Today's arrivals & departures",type:"Type",hkHint:"Tap a room to cycle its status: Available → Cleaning → Available. Occupied rooms clear on check-out.",pendingRequests:"Pending booking requests",noPending:"No pending requests.",tax:"Tax",taxSettings:"Tax settings (MIRA)",greenTaxRate:"Green Tax (USD / guest / night)",tgstRate:"TGST rate (%)",usdRate:"MVR per USD (for MVR totals)",tgstIncl:"Room rate already includes TGST",saveSettings:"Save settings",taxNote:"Defaults: USD 6/guest/night Green Tax for guesthouses with 50 or fewer rooms on inhabited islands (USD 12 for larger properties/resorts), TGST 17%. Children under 2 are exempt from Green Tax. Verify current rates at mira.gov.mv before filing.",taxCalc:"Quick tax calculator",roomRateMvr:"Room rate per night (MVR)",guestsCount:"Number of guests","mira-report":"MIRA monthly report",printReport:"Print / Save PDF",greenTaxSheet:"Green Tax information sheet",taxDays:"Tax days",greenTaxUsd:"Green Tax (USD)",tgstSheet:"TGST summary",taxableValue:"Taxable value (MVR)",tgstAmount:"TGST (MVR)"},
  dv:{appName:"އޮއިވަރު ގެސްޓްހައުސް މެނޭޖަރ",tagline:"ބުކިން · ބިލިން · ހައުސްކީޕިން · ރިޕޯޓް",email:"އީމެއިލް",password:"ޕާސްވޯޑް",signIn:"ވަދޭ",signOut:"ނުކުމޭ",dashboard:"ޑޭޝްބޯޑް",rooms:"ކޮޓަރި",bookings:"ބުކިން",billing:"ބިލިން",housekeeping:"ހައުސްކީޕިން",reports:"ރިޕޯޓް",addRoom:"+ ކޮޓަރި އިތުރުކުރޭ",newBooking:"+ އައު ބުކިން",guest:"މެހެމާން",room:"ކޮޓަރި",checkIn:"ޗެކިން",checkOut:"ޗެކައުޓް",status:"ހާލަތު",payment:"ފައިސާ",nights:"ރޭ",total:"ޖުމްލަ (MVR)",paid:"ދެއްކި",month:"މަސް",revenue:"އާމްދަނީ (MVR)",revByRoom:"ކޮޓަރިއަކުން އާމްދަނީ",todayArrivals:"މިއަދުގެ އަންނަ/ދާ މެހެމާނުން",type:"ބާވަތް",hkHint:"ކޮޓަރިއަށް ފިތާލައިގެން ހާލަތު ބަދަލުކުރޭ",pendingRequests:"އެދިފައިވާ ބުކިންތައް",noPending:"އެދިފައިވާ ބުކިންއެއް ނެތް.",tax:"ޓެކްސް",taxSettings:"ޓެކްސް ސެޓިންގްސް (MIRA)",greenTaxRate:"ގްރީން ޓެކްސް (USD / މީހަކަށް / ރެއަކަށް)",tgstRate:"TGST ރޭޓް (%)",usdRate:"MVR ރޭޓް (USD އަކަށް)",tgstIncl:"ކޮޓަރި ރޭޓްގައި TGST ހިމެނިފައި",saveSettings:"ސޭވް ކުރޭ",taxNote:"ޑިފޯލްޓް: 50 ނުވަތަ އެއަށްވުރެ މަދު ކޮޓަރީގެ ގެސްޓްހައުސްތަކަށް USD 6/މީހަކަށް/ރެއަކަށް ގްރީން ޓެކްސް (ބޮޑެތި ތަންތަނަށް USD 12)، TGST 17%. 2 އަހަރުން ދަށުގެ ކުދިން ގްރީން ޓެކްސްއިން މުސްތަސްނާ. mira.gov.mv އިން ރޭޓް ޔަގީންކުރައްވާ.",taxCalc:"ޓެކްސް ކެލްކިއުލޭޓަރ",roomRateMvr:"ކޮޓަރި ރޭޓް (MVR)",guestsCount:"މެހެމާނުންގެ ޢަދަދު","mira-report":"MIRA މަހު ރިޕޯޓް",printReport:"ޕްރިންޓް / PDF",greenTaxSheet:"ގްރީން ޓެކްސް ޝީޓް",taxDays:"ޓެކްސް ދުވަސް",greenTaxUsd:"ގްރީން ޓެކްސް (USD)",tgstSheet:"TGST ޚުލާސާ",taxableValue:"ޓެކްސް ޖެހޭ އަދަދު (MVR)",tgstAmount:"TGST (MVR)"}
 };
 function toggleLang(){ state.lang = state.lang==="en"?"dv":"en"; applyLang(); }
