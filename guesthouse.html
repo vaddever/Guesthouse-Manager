@@ -471,26 +471,82 @@ function renderBookings(){
     </td></tr>`).join("")
     || `<tr><td colspan="7" style="color:#8a9394">No bookings.</td></tr>`;
 }
+let advRows = [];
 function openBookingModal(id){
   const b = id? state.bookings.find(x=>x.id===id):{checkIn:today(),checkOut:today()};
+  advRows = id ? [] : [{currency:"MVR", amount:0, method:"Cash"}];
   modal(`<h3>${id?"Edit booking":"New booking"}</h3>
     <label>Guest name</label><input id="mBkName" value="${esc(b.guestName||"")}">
     <label>Phone</label><input id="mBkPhone" value="${esc(b.phone||"")}">
     <label>Number of guests</label><input id="mBkGuests" type="number" min="1" value="${b.guestCount||1}">
     <label>Room</label>
-    <select id="mBkRoom">${state.rooms.map(r=>`<option value="${r.id}" ${b.roomId===r.id?"selected":""}>${esc(r.number)} — MVR ${fmt(r.rate)} (≈USD ${fmt((r.rate||0)/state.taxSettings.usdRate)})</option>`).join("")}</select>
+    <select id="mBkRoom" onchange="recalcBkTotal('${id||""}')">${state.rooms.map(r=>`<option value="${r.id}" ${b.roomId===r.id?"selected":""}>${esc(r.number)} — MVR ${fmt(r.rate)} (≈USD ${fmt((r.rate||0)/state.taxSettings.usdRate)})</option>`).join("")}</select>
     <div style="display:flex;gap:10px">
-      <div style="flex:1"><label>Check-in</label><input id="mBkIn" type="date" value="${b.checkIn}"></div>
-      <div style="flex:1"><label>Check-out</label><input id="mBkOut" type="date" value="${b.checkOut}"></div>
+      <div style="flex:1"><label>Check-in</label><input id="mBkIn" type="date" value="${b.checkIn}" onchange="recalcBkTotal('${id||""}')"></div>
+      <div style="flex:1"><label>Check-out</label><input id="mBkOut" type="date" value="${b.checkOut}" onchange="recalcBkTotal('${id||""}')"></div>
     </div>
-    <label>Paid so far (MVR)</label><input id="mBkPaid" type="number" value="${b.paidAmount||0}">
+    <div id="mBkTotal" class="card" style="margin-top:12px;background:#F7F3EC"></div>
+    <label>Paid so far (MVR)</label><input id="mBkPaid" type="number" value="${b.paidAmount||0}" ${id?"":"readonly style=\"background:#F0EDE4\""}>
     <label>Status</label>
     <select id="mBkStatus">${["pending","confirmed","checkedin","checkedout","cancelled"].map(s=>`<option ${b.status===s?"selected":""}>${s}</option>`).join("")}</select>
+    ${id?"":`
+    <h4 style="margin:16px 0 4px;font-size:.85rem;color:#5a6465">Collect advance payment (optional)</h4>
+    <p style="font-size:.78rem;color:#8a9394;margin-bottom:6px">Split across currencies if the guest is paying part in USD, part in MVR, etc.</p>
+    <div id="advRowsWrap"></div>
+    <button type="button" class="ghost" style="margin-top:8px" onclick="advRows.push({currency:'MVR',amount:0,method:'Cash'});renderAdvRows('${id||""}')">+ Add another currency/method</button>
+    `}
     <div id="mBkMsg" class="msg"></div>
     <div class="mActions">
       <button class="ghost" onclick="closeModal()">Cancel</button>
       <button class="pri" onclick="saveBooking('${id||""}')">Save</button>
     </div>`);
+  recalcBkTotal(id||"");
+  if(!id) renderAdvRows("");
+}
+function recalcBkTotal(id){
+  const room = roomById(mBkRoom.value);
+  const inD=mBkIn.value, outD=mBkOut.value;
+  if(!inD||!outD||outD<=inD){ mBkTotal.innerHTML=`<span style="color:#8a9394;font-size:.85rem">Pick valid dates to see the total.</span>`; return; }
+  const n = nightsBetween(inD,outD);
+  const total = (room.rate||0)*n;
+  mBkTotal.innerHTML = `${n} night(s) × MVR ${fmt(room.rate)} = <b>MVR ${fmt(total)}</b> (≈USD ${fmt(total/state.taxSettings.usdRate)})`;
+  if(!document.getElementById("advRowsWrap")) return;
+  refreshAdvSummary(total);
+}
+function renderAdvRows(id){
+  advRowsWrap.innerHTML = advRows.map((r,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-top:8px">
+      <div style="flex:1"><label style="margin:0 0 4px">Currency</label>
+        <select onchange="onAdvCurrencyChange(${i},this.value,'${id}')">
+          ${["MVR","USD","EUR","GBP"].map(c=>`<option value="${c}" ${r.currency===c?"selected":""}>${c}</option>`).join("")}
+        </select></div>
+      <div style="flex:1"><label style="margin:0 0 4px">Amount</label>
+        <input type="number" value="${r.amount}" oninput="advRows[${i}].amount=+this.value||0;refreshAdvSummary()"></div>
+      <div style="flex:1"><label style="margin:0 0 4px">Method</label>
+        <select onchange="advRows[${i}].method=this.value">
+          ${["Cash","Bank Transfer","Card","BML QR / MIB QR","Online Payment","Other"].map(m=>`<option ${r.method===m?"selected":""}>${m}</option>`).join("")}
+        </select></div>
+      <button type="button" class="danger" style="padding:9px 11px" onclick="advRows.splice(${i},1);renderAdvRows('${id}');refreshAdvSummary()">✕</button>
+    </div>`).join("");
+  refreshAdvSummary();
+}
+function onAdvCurrencyChange(i,newCur,id){
+  advRows[i].currency = newCur;
+  renderAdvRows(id);
+}
+function refreshAdvSummary(totalOverride){
+  const room = roomById(mBkRoom?.value);
+  const inD=mBkIn?.value, outD=mBkOut?.value;
+  const total = totalOverride!==undefined ? totalOverride
+    : (inD&&outD&&outD>inD ? (room.rate||0)*nightsBetween(inD,outD) : 0);
+  const tenderedMvr = advRows.reduce((s,r)=>s+(r.amount*rateFor(r.currency)),0);
+  mBkPaid.value = tenderedMvr.toFixed(2);
+  const lines = advRows.filter(r=>r.amount>0).map(r=>
+    `${r.currency} ${fmt(r.amount)}${r.currency!=="MVR"?` (≈MVR ${fmt(r.amount*rateFor(r.currency))})`:""}`).join(" + ");
+  const balance = total - tenderedMvr;
+  mBkTotal.innerHTML = (total ? `${nightsBetween(inD,outD)} night(s) × MVR ${fmt(room.rate)} = <b>MVR ${fmt(total)}</b> (≈USD ${fmt(total/state.taxSettings.usdRate)})<br>` : `<span style="color:#8a9394;font-size:.85rem">Pick valid dates to see the total.</span><br>`)
+    + (lines ? `Advance tendered: <b>${lines}</b> = MVR ${fmt(tenderedMvr)}<br>
+       ${balance>0?"Balance due at check-in":"Fully paid / change due"}: <b style="color:${balance>0?'var(--coral)':'var(--palm)'}">MVR ${fmt(Math.abs(balance))}</b>` : "");
 }
 function overlaps(roomId, inD, outD, excludeId){
   return state.bookings.some(b=>b.roomId===roomId && b.id!==excludeId
@@ -507,9 +563,12 @@ async function saveBooking(id){
     m.className="msg err"; m.textContent="This room is already booked for those dates."; return;
   }
   const rate=roomById(roomId).rate||0, n=nightsBetween(inD,outD);
+  const advPayments = !id ? advRows.filter(r=>r.amount>0).map(r=>
+    ({amount:r.amount, currency:r.currency, mvrAmount:r.amount*rateFor(r.currency), method:r.method, date:today()})) : null;
   const data={guestName:mBkName.value.trim(),phone:mBkPhone.value.trim(),guestCount:+mBkGuests.value||1,roomId,
     checkIn:inD,checkOut:outD,nights:n,rate,total:rate*n,
     paidAmount:+mBkPaid.value||0,status:mBkStatus.value,updatedAt:Date.now()};
+  if(advPayments && advPayments.length) data.payments = advPayments;
   const col=db.collection("properties").doc(state.propertyId).collection("bookings");
   id? await col.doc(id).update(data) : await col.add({...data,createdAt:Date.now()});
   closeModal();
