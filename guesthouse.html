@@ -122,17 +122,22 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
     <label data-i18n="password">Password</label>
     <input id="loginPass" type="password" autocomplete="current-password">
     <div id="loginMsg" class="msg"></div>
-    <button class="pri" style="width:100%;margin-top:14px" onclick="doLogin()" data-i18n="signIn">Sign in</button>
+    <button class="pri" id="loginBtn" style="width:100%;margin-top:14px" onclick="doLogin()" data-i18n="signIn">Sign in</button>
+    <p style="text-align:center;font-size:.82rem;margin-top:14px;color:#6b7677">
+      <span id="toggleModeText" data-i18n="noAccount">Don't have an account?</span>
+      <a href="#" id="toggleModeLink" onclick="toggleAuthMode();return false" style="color:var(--lagoon-dk);font-weight:600" data-i18n="register">Register</a>
+    </p>
   </div>
 </div>
 
 <!-- APP -->
 <div id="appView">
   <header>
-    <span class="brand">≈ Kleio GH Manager</span>
+    <span class="brand">≈ Kleio</span>
     <select id="propertySel" onchange="switchProperty()"></select>
     <button class="ghost" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.4)" onclick="openPropertyModal()">＋</button>
     <div class="spacer"></div>
+    <span id="trialBadge" style="font-size:.76rem;background:rgba(255,255,255,.15);padding:4px 10px;border-radius:99px;display:none"></span>
     <span id="userEmail" style="font-size:.78rem;opacity:.85"></span>
     <button class="langBtn" onclick="toggleLang()">EN/ދިވެހި</button>
     <button class="outBtn" onclick="fb.auth().signOut()" data-i18n="signOut">Sign out</button>
@@ -145,6 +150,7 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
     <button data-v="housekeeping" onclick="show('housekeeping')" data-i18n="housekeeping">Housekeeping</button>
     <button data-v="tax" onclick="show('tax')" data-i18n="tax">Tax</button>
     <button data-v="reports" onclick="show('reports')" data-i18n="reports">Reports</button>
+    <button data-v="admin" id="adminNavBtn" onclick="show('admin')" style="display:none">Admin</button>
   </nav>
   <main>
 
@@ -270,6 +276,26 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
       <tbody id="repRows"></tbody></table>
     </div>
 
+    <!-- ADMIN (portal owner only) -->
+    <div id="v-admin" class="view">
+      <div class="grid g3">
+        <div class="card">
+          <h3 style="margin-bottom:10px">Portal configuration</h3>
+          <label>Trial period (days)</label>
+          <input id="cfgTrialDays" type="number" min="1">
+          <label>Pro plan price (MVR / month)</label>
+          <input id="cfgProPrice" type="number" min="0">
+          <label>Upgrade contact (WhatsApp number)</label>
+          <input id="cfgUpgradePhone" placeholder="9607XXXXXX">
+          <button class="pri" style="margin-top:14px" onclick="savePortalConfig()">Save configuration</button>
+        </div>
+      </div>
+      <h3 style="margin:22px 0 10px">Registered users</h3>
+      <table><thead><tr>
+        <th>Email</th><th>Registered</th><th>Plan</th><th>Trial status</th><th></th>
+      </tr></thead><tbody id="adminUserRows"></tbody></table>
+    </div>
+
   </main>
 </div>
 
@@ -280,6 +306,17 @@ td{padding:10px 12px;border-top:1px solid var(--line);font-size:.87rem}
 
 <!-- INVOICE -->
 <div id="invoicePrint"></div>
+
+<!-- UPGRADE LOCK OVERLAY -->
+<div id="upgradeWrap" style="display:none;position:fixed;inset:0;background:rgba(20,30,31,.6);z-index:60;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:14px;padding:28px;max-width:420px;text-align:center">
+    <div style="font-size:2rem">⏳</div>
+    <h2 style="color:var(--lagoon-dk);margin:8px 0">Your free trial has ended</h2>
+    <p id="upgradeMsg" style="color:#6b7677;font-size:.9rem;margin-bottom:18px">Upgrade to Kleio Pro to keep full access to bookings, billing, tax reports and more.</p>
+    <a id="upgradeWaBtn" class="pri" style="display:inline-block;text-decoration:none;padding:12px 20px" target="_blank">Upgrade via WhatsApp</a>
+    <div style="margin-top:14px"><button class="ghost" onclick="fb.auth().signOut()">Sign out</button></div>
+  </div>
+</div>
 
 <script>
 /* ============ CONFIG — paste your Firebase config here ============ */
@@ -299,12 +336,13 @@ const fb = firebase; fb.initializeApp(firebaseConfig);
 const db = fb.firestore();
 
 let state = { user:null, propertyId:null, properties:[], rooms:[], bookings:[], lang:"en",
-  taxSettings:{greenTax:6, tgst:17, usdRate:15.42, eurRate:16.7, gbpRate:19.5, tgstIncl:true} };
+  taxSettings:{greenTax:6, tgst:17, usdRate:15.42, eurRate:16.7, gbpRate:19.5, tgstIncl:true},
+  userDoc:null, portalConfig:{trialDays:14, proPrice:299, upgradePhone:"9607771234"}, authMode:"login" };
 let unsubRooms=null, unsubBookings=null;
 
 /* ---------- i18n ---------- */
 const T = {
- en:{appName:"Kleio Guesthouse Manager",tagline:"Bookings · Billing · Housekeeping · Reports",email:"Email",password:"Password",signIn:"Sign in",signOut:"Sign out",dashboard:"Dashboard",rooms:"Rooms",bookings:"Bookings",billing:"Billing",housekeeping:"Housekeeping",reports:"Reports",addRoom:"+ Add room",newBooking:"+ New booking",guest:"Guest",room:"Room",checkIn:"Check-in",checkOut:"Check-out",status:"Status",payment:"Payment",nights:"Nights",total:"Total (MVR)",paid:"Paid",month:"Month",revenue:"Revenue (MVR)",revByRoom:"Revenue by room",todayArrivals:"Today's arrivals & departures",type:"Type",hkHint:"Tap a room to cycle its status: Available → Cleaning → Available. Occupied rooms clear on check-out.",pendingRequests:"Pending booking requests",noPending:"No pending requests.",tax:"Tax",taxSettings:"Tax settings (MIRA)",greenTaxRate:"Green Tax (USD / guest / night)",tgstRate:"TGST rate (%)",usdRate:"MVR per USD (for MVR totals)",tgstIncl:"Room rate already includes TGST",saveSettings:"Save settings",taxNote:"Defaults: USD 6/guest/night Green Tax for guesthouses with 50 or fewer rooms on inhabited islands (USD 12 for larger properties/resorts), TGST 17%. Children under 2 are exempt from Green Tax. Verify current rates at mira.gov.mv before filing.",taxCalc:"Quick tax calculator",roomRateMvr:"Room rate per night (MVR)",guestsCount:"Number of guests","mira-report":"MIRA monthly report",printReport:"Print / Save PDF",greenTaxSheet:"Green Tax information sheet",taxDays:"Tax days",greenTaxUsd:"Green Tax (USD)",tgstSheet:"TGST summary",taxableValue:"Taxable value (MVR)",tgstAmount:"TGST (MVR)"},
+ en:{appName:"Kleio Guesthouse Manager",tagline:"Bookings · Billing · Housekeeping · Reports",email:"Email",password:"Password",signIn:"Sign in",signOut:"Sign out",dashboard:"Dashboard",rooms:"Rooms",bookings:"Bookings",billing:"Billing",housekeeping:"Housekeeping",reports:"Reports",addRoom:"+ Add room",newBooking:"+ New booking",guest:"Guest",room:"Room",checkIn:"Check-in",checkOut:"Check-out",status:"Status",payment:"Payment",nights:"Nights",total:"Total (MVR)",paid:"Paid",month:"Month",revenue:"Revenue (MVR)",revByRoom:"Revenue by room",todayArrivals:"Today's arrivals & departures",type:"Type",hkHint:"Tap a room to cycle its status: Available → Cleaning → Available. Occupied rooms clear on check-out.",pendingRequests:"Pending booking requests",noPending:"No pending requests.",tax:"Tax",taxSettings:"Tax settings (MIRA)",greenTaxRate:"Green Tax (USD / guest / night)",tgstRate:"TGST rate (%)",usdRate:"MVR per USD (for MVR totals)",tgstIncl:"Room rate already includes TGST",saveSettings:"Save settings",taxNote:"Defaults: USD 6/guest/night Green Tax for guesthouses with 50 or fewer rooms on inhabited islands (USD 12 for larger properties/resorts), TGST 17%. Children under 2 are exempt from Green Tax. Verify current rates at mira.gov.mv before filing.",taxCalc:"Quick tax calculator",roomRateMvr:"Room rate per night (MVR)",guestsCount:"Number of guests","mira-report":"MIRA monthly report",printReport:"Print / Save PDF",greenTaxSheet:"Green Tax information sheet",taxDays:"Tax days",greenTaxUsd:"Green Tax (USD)",tgstSheet:"TGST summary",taxableValue:"Taxable value (MVR)",tgstAmount:"TGST (MVR)",noAccount:"Don't have an account?",register:"Register",haveAccount:"Already have an account?"},
  dv:{appName:"އޮއިވަރު ގެސްޓްހައުސް މެނޭޖަރ",tagline:"ބުކިން · ބިލިން · ހައުސްކީޕިން · ރިޕޯޓް",email:"އީމެއިލް",password:"ޕާސްވޯޑް",signIn:"ވަދޭ",signOut:"ނުކުމޭ",dashboard:"ޑޭޝްބޯޑް",rooms:"ކޮޓަރި",bookings:"ބުކިން",billing:"ބިލިން",housekeeping:"ހައުސްކީޕިން",reports:"ރިޕޯޓް",addRoom:"+ ކޮޓަރި އިތުރުކުރޭ",newBooking:"+ އައު ބުކިން",guest:"މެހެމާން",room:"ކޮޓަރި",checkIn:"ޗެކިން",checkOut:"ޗެކައުޓް",status:"ހާލަތު",payment:"ފައިސާ",nights:"ރޭ",total:"ޖުމްލަ (MVR)",paid:"ދެއްކި",month:"މަސް",revenue:"އާމްދަނީ (MVR)",revByRoom:"ކޮޓަރިއަކުން އާމްދަނީ",todayArrivals:"މިއަދުގެ އަންނަ/ދާ މެހެމާނުން",type:"ބާވަތް",hkHint:"ކޮޓަރިއަށް ފިތާލައިގެން ހާލަތު ބަދަލުކުރޭ",pendingRequests:"އެދިފައިވާ ބުކިންތައް",noPending:"އެދިފައިވާ ބުކިންއެއް ނެތް.",tax:"ޓެކްސް",taxSettings:"ޓެކްސް ސެޓިންގްސް (MIRA)",greenTaxRate:"ގްރީން ޓެކްސް (USD / މީހަކަށް / ރެއަކަށް)",tgstRate:"TGST ރޭޓް (%)",usdRate:"MVR ރޭޓް (USD އަކަށް)",tgstIncl:"ކޮޓަރި ރޭޓްގައި TGST ހިމެނިފައި",saveSettings:"ސޭވް ކުރޭ",taxNote:"ޑިފޯލްޓް: 50 ނުވަތަ އެއަށްވުރެ މަދު ކޮޓަރީގެ ގެސްޓްހައުސްތަކަށް USD 6/މީހަކަށް/ރެއަކަށް ގްރީން ޓެކްސް (ބޮޑެތި ތަންތަނަށް USD 12)، TGST 17%. 2 އަހަރުން ދަށުގެ ކުދިން ގްރީން ޓެކްސްއިން މުސްތަސްނާ. mira.gov.mv އިން ރޭޓް ޔަގީންކުރައްވާ.",taxCalc:"ޓެކްސް ކެލްކިއުލޭޓަރ",roomRateMvr:"ކޮޓަރި ރޭޓް (MVR)",guestsCount:"މެހެމާނުންގެ ޢަދަދު","mira-report":"MIRA މަހު ރިޕޯޓް",printReport:"ޕްރިންޓް / PDF",greenTaxSheet:"ގްރީން ޓެކްސް ޝީޓް",taxDays:"ޓެކްސް ދުވަސް",greenTaxUsd:"ގްރީން ޓެކްސް (USD)",tgstSheet:"TGST ޚުލާސާ",taxableValue:"ޓެކްސް ޖެހޭ އަދަދު (MVR)",tgstAmount:"TGST (MVR)"}
 };
 function toggleLang(){ state.lang = state.lang==="en"?"dv":"en"; applyLang(); }
@@ -317,22 +355,110 @@ function applyLang(){
 const t = k => T[state.lang][k]||k;
 
 /* ---------- auth ---------- */
-function doLogin(){
+function toggleAuthMode(){
+  state.authMode = state.authMode==="login" ? "register" : "login";
+  loginBtn.textContent = state.authMode==="login" ? t("signIn") : t("register");
+  toggleModeText.textContent = state.authMode==="login" ? t("noAccount") : t("haveAccount");
+  toggleModeLink.textContent = state.authMode==="login" ? t("register") : t("signIn");
+  loginMsg.className="msg";
+}
+async function doLogin(){
   const m=document.getElementById("loginMsg"); m.className="msg";
-  fb.auth().signInWithEmailAndPassword(loginEmail.value.trim(), loginPass.value)
-    .catch(e=>{ m.className="msg err"; m.textContent=e.message; });
+  try{
+    if(state.authMode==="register"){
+      const cred = await fb.auth().createUserWithEmailAndPassword(loginEmail.value.trim(), loginPass.value);
+      await db.collection("users").doc(cred.user.uid).set({
+        email: cred.user.email, createdAt: Date.now(), plan: "trial"
+      });
+    } else {
+      await fb.auth().signInWithEmailAndPassword(loginEmail.value.trim(), loginPass.value);
+    }
+  }catch(e){ m.className="msg err"; m.textContent=e.message; }
+}
+async function loadPortalConfig(){
+  const doc = await db.collection("app_config").doc("global").get();
+  if(doc.exists) state.portalConfig = Object.assign(state.portalConfig, doc.data());
+}
+function trialInfo(){
+  const ud = state.userDoc;
+  if(!ud) return {active:true, daysLeft:999, isPro:false};
+  if(ud.plan==="pro") return {active:true, daysLeft:null, isPro:true};
+  const days = state.portalConfig.trialDays;
+  const elapsed = (Date.now()-(ud.createdAt||Date.now()))/86400000;
+  const daysLeft = Math.max(0, Math.ceil(days-elapsed));
+  return {active: daysLeft>0, daysLeft, isPro:false};
+}
+function applyPlanGate(){
+  const isAdmin = state.user && state.user.email===ADMIN_EMAIL;
+  adminNavBtn.style.display = isAdmin ? "" : "none";
+  if(isAdmin){ trialBadge.style.display="none"; upgradeWrap.style.display="none"; return; }
+  const ti = trialInfo();
+  if(ti.isPro){
+    trialBadge.style.display="inline-block"; trialBadge.textContent="Pro plan";
+    upgradeWrap.style.display="none";
+  } else if(ti.active){
+    trialBadge.style.display="inline-block"; trialBadge.textContent=`Trial · ${ti.daysLeft} day${ti.daysLeft===1?"":"s"} left`;
+    upgradeWrap.style.display="none";
+  } else {
+    trialBadge.style.display="inline-block"; trialBadge.textContent="Trial ended";
+    const phone=(state.portalConfig.upgradePhone||"").replace(/[^0-9]/g,"");
+    const msg=encodeURIComponent(`Hi, I'd like to upgrade my Kleio Guesthouse Manager account (${state.user.email}) to Pro (MVR ${state.portalConfig.proPrice}/month).`);
+    upgradeWaBtn.href = `https://wa.me/${phone}?text=${msg}`;
+    upgradeMsg.textContent = `Your ${state.portalConfig.trialDays}-day free trial has ended. Upgrade to Kleio Pro (MVR ${state.portalConfig.proPrice}/month) to keep full access.`;
+    upgradeWrap.style.display="flex";
+  }
 }
 fb.auth().onAuthStateChanged(async u=>{
   state.user=u;
   document.getElementById("loginView").style.display = u?"none":"flex";
   document.getElementById("appView").style.display = u?"block":"none";
-  if(u){ document.getElementById("userEmail").textContent=u.email; await loadProperties(); }
+  if(u){
+    document.getElementById("userEmail").textContent=u.email;
+    await loadPortalConfig();
+    if(u.email!==ADMIN_EMAIL){
+      const udoc = await db.collection("users").doc(u.uid).get();
+      state.userDoc = udoc.exists ? udoc.data() : null;
+      if(!state.userDoc){
+        state.userDoc = {email:u.email, createdAt:Date.now(), plan:"trial"};
+        await db.collection("users").doc(u.uid).set(state.userDoc);
+      }
+    }
+    applyPlanGate();
+    await loadProperties();
+    if(u.email===ADMIN_EMAIL) loadAdminUsers();
+  }
 });
+
+/* ---------- portal admin ---------- */
+async function savePortalConfig(){
+  state.portalConfig = {trialDays:+cfgTrialDays.value||14, proPrice:+cfgProPrice.value||0, upgradePhone:cfgUpgradePhone.value.trim()};
+  await db.collection("app_config").doc("global").set(state.portalConfig);
+}
+async function loadAdminUsers(){
+  cfgTrialDays.value=state.portalConfig.trialDays; cfgProPrice.value=state.portalConfig.proPrice; cfgUpgradePhone.value=state.portalConfig.upgradePhone;
+  const snap = await db.collection("users").orderBy("createdAt","desc").get();
+  const users = snap.docs.map(d=>({id:d.id,...d.data()}));
+  adminUserRows.innerHTML = users.map(u=>{
+    const elapsed=(Date.now()-(u.createdAt||Date.now()))/86400000;
+    const daysLeft=Math.max(0,Math.ceil(state.portalConfig.trialDays-elapsed));
+    const trialTxt = u.plan==="pro" ? "—" : (daysLeft>0?`${daysLeft} day(s) left`:"Expired");
+    return `<tr><td>${esc(u.email)}</td><td>${new Date(u.createdAt).toISOString().slice(0,10)}</td>
+      <td><span class="badge ${u.plan==='pro'?'b-checkedin':'b-pending'}">${u.plan}</span></td>
+      <td>${trialTxt}</td>
+      <td>${u.plan==='pro'
+        ? `<button class="ghost" onclick="setUserPlan('${u.id}','trial')">Revoke Pro</button>`
+        : `<button class="pri" onclick="setUserPlan('${u.id}','pro')">Activate Pro</button>`}</td></tr>`;
+  }).join("") || `<tr><td colspan="5" style="color:#8a9394">No registered users yet.</td></tr>`;
+}
+async function setUserPlan(uid,plan){
+  await db.collection("users").doc(uid).update({plan});
+  loadAdminUsers();
+}
 
 /* ---------- properties (multi-property) ---------- */
 async function loadProperties(){
-  const snap = await db.collection("properties").orderBy("name").get();
-  state.properties = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const snap = await db.collection("properties").where("ownerId","==",state.user.uid).get();
+  state.properties = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const sel=document.getElementById("propertySel");
   sel.innerHTML = state.properties.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
   if(!state.properties.length){ openPropertyModal(true); return; }
@@ -354,7 +480,7 @@ function openPropertyModal(forced){
 }
 async function saveProperty(){
   const name=mPropName.value.trim(); if(!name)return;
-  await db.collection("properties").add({name, location:mPropLoc.value.trim(), createdAt:Date.now()});
+  await db.collection("properties").add({name, location:mPropLoc.value.trim(), ownerId:state.user.uid, createdAt:Date.now()});
   closeModal(); loadProperties();
 }
 
